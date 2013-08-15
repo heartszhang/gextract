@@ -5,36 +5,13 @@ import (
 	"log"
 )
 
-const (
-	max_words_per_line = 60 // 每行最大中文字符数，每个英文单词算等同一个中文字符
-)
-
-type block struct {
-	element       *html.Node
-	chars         int // alpha, digits, punc, zh-char
-	words         int // word or zh-char
-	tokens        int // number, punc, zh-char or word
-	lines         int
-	anchor_words  int
-	words_wrapped int
-	text_density  float64
-	link_density  float64
-
-	text string
-
-	is_content bool
-	has_image  bool
-	has_object bool // object, embed, video, audio
-	is_form    bool
-}
-
 type Boilerpiper struct {
 	titles      []string
 	description string
 	authors     []string
 	keywords    []string
 
-	content []*block
+	content []*boilerpipe_score
 
 	words       int
 	lines       int
@@ -43,10 +20,29 @@ type Boilerpiper struct {
 	outer_chars int
 	parags      int
 
-	words_p_block float64
+	words_p_boilerpipe_score float64
 	quality       float64
 
 	body *html.Node
+}
+
+func NewBoilerpiper2(article *html.Node) *Boilerpiper {
+  rtn := new_boilerpiper()
+  flatten_paragraphs(article)
+  return rtn
+}
+
+func (this *Boilerpiper) flatten_paragraphs(n *html.Node) {
+  switch{
+  case n.Data == "form" || n.Data == "input" || n.Data == "textarea" :
+    this.content = append(this.content, make_readability_score_form(n))
+  case hasInlineNodes(n) :
+    this.content = append(this.content, make_readability_score(n))
+  default:
+    foreach_child(n, func(child *html.Node) {
+      this.flatten_paragraphs(child)
+    })
+  }
 }
 
 func NewBoilerpiper(article *html.Node) *Boilerpiper {
@@ -61,8 +57,8 @@ func NewBoilerpiper(article *html.Node) *Boilerpiper {
 func (this *Boilerpiper) NumberWordsRulesFilter() {
 	for idx, current := range this.content {
 		var (
-			prev *block = &block{}
-			next *block = &block{}
+			prev *boilerpipe_score = &boilerpipe_score{}
+			next *boilerpipe_score = &boilerpipe_score{}
 		)
 		if idx != 0 {
 			prev = this.content[idx-1]
@@ -83,7 +79,7 @@ func (this *Boilerpiper) NumberWordsRulesFilter() {
 // 清除表单前的提示行
 func (this *Boilerpiper) FormPrefixFilter() {
 	for idx, current := range this.content {
-		var next = &block{}
+		var next = &boilerpipe_score{}
 		if idx < len(this.content)-1 {
 			next = this.content[idx+1]
 		}
@@ -99,11 +95,11 @@ func new_boilerpiper() *Boilerpiper {
 	rtn := Boilerpiper{titles: []string{},
 		authors:  []string{},
 		keywords: []string{},
-		content:  []*block{}}
+		content:  []*boilerpipe_score{}}
 	return &rtn
 }
 
-func (this *block) make_end() {
+func (this *boilerpipe_score) make_end() {
 	this.lines = (this.words + max_words_per_line - 1) / max_words_per_line
 	this.words_wrapped = int(this.words/max_words_per_line) * max_words_per_line
 	if this.words > 0 {
@@ -112,8 +108,9 @@ func (this *block) make_end() {
 	}
 }
 
-func make_paragraph(p *html.Node) *block {
-	para := &block{element: p}
+func make_boilerpipe_score(p *html.Node) *boilerpipe_score {
+	para := &boilerpipe_score{element: p}
+
 	foreach_child(p, func(child *html.Node) {
 		txt := get_inner_text(child)
 		tks, wds := count_words(txt)
@@ -133,14 +130,15 @@ func make_paragraph(p *html.Node) *block {
 			para.anchor_words += 4
 		}
 	})
-	if p.Type == html.ElementNode && (p.Data == "form" || p.Data == "input" || p.Data == "textarea") {
+	if p.Type == html.ElementNode &&
+    (p.Data == "form" || p.Data == "input" || p.Data == "textarea") {
 		para.is_form = true
 	}
 	para.make_end()
 	return para
 }
 
-func (this *Boilerpiper) classify(prev *block, current *block, next *block) {
+func (this *Boilerpiper) classify(prev *boilerpipe_score, current *boilerpipe_score, next *boilerpipe_score) {
 	if current.link_density > 0.333333 {
 		current.is_content = false
 	} else {
@@ -160,3 +158,7 @@ func (this *Boilerpiper) classify(prev *block, current *block, next *block) {
 		current.words,
 		current.lines, current.is_form, current.link_density, current.anchor_words, current.text)
 }
+
+const (
+	max_words_per_line = 60 // 每行最大中文字符数，每个英文单词算等同一个中文字符
+)

@@ -87,7 +87,7 @@ func isBlockNode(n *html.Node) bool {
 		return false
 	}
 	name := n.Data
-	rtn := name == "div" || name == "p" ||
+	rtn := name == "div" || name == "p" || name == "pre" ||
 		name == "h1" || name == "h2" || name == "h3" || name == "h4" ||
 		name == "h5" || name == "h6" || name == "body" ||
 		name == "html" || name == "article" || name == "section" || name == "head" ||
@@ -367,4 +367,54 @@ func try_update_class_attr(b *html.Node, class string) {
 		ca[len(b.Attr)] = html.Attribute{Key: "class", Val: class}
 		b.Attr = ca
 	}
+}
+
+func get_link_density(n *html.Node) int{
+  ld,_ := get_link_density_words(n)
+  return ld
+}
+
+func get_link_density_words(n *html.Node) int,int {
+  ll := 0
+  wl := 0
+
+  for _, t := range tokenize(get_inner_text(n)) {
+    if is_word(t) {
+      wl++
+    }
+  }
+  if wl == 0 {
+    return 0,0
+  }
+  for _, t : range tokenize(anchor_text(n)) {
+    if is_word(t) {
+      ll++
+    }
+  }
+  return ll * 100 / wl,0
+}
+
+func cat_class(b *html.Node, class string) (rtn string) {
+	c := get_attribute(b, "class")
+	id := get_attribute(b, "id")
+	rtn = class
+	if len(c) > 0 {
+		rtn = class + "/" + c
+	}
+	if len(id) > 0 {
+		rtn = class + "#" + id
+	}
+	return
+}
+func create_html_sketch() (doc *html.Node, body *html.Node, article *html.Node) {
+	doc = &html.Node{Type: html.DocumentNode}
+	dt := &html.Node{Type: html.DoctypeNode, Data: "html"}
+	root := create_element("html")
+	body = create_element("body")
+	article = create_element("article")
+	doc.AppendChild(dt)
+	doc.AppendChild(root)
+	root.AppendChild(body)
+	body.AppendChild(article)
+  return
 }

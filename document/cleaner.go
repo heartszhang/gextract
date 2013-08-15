@@ -43,9 +43,6 @@ func (cleaner *HtmlCleaner) grab_title(title *html.Node) {
 
 }
 
-var (
-  unlikely *regexp.Regexp = regexp.MustCompile(`combx|comment|community|disqus|extra|foot|header|menu|remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate|pagination|pager|popup|tweet|twitter`)
-)
 //CleanHtml 清洗掉所有的link/style/css
 // 删除/html/head
 // 转换所有的tag为小写字母
@@ -89,6 +86,10 @@ func (cleaner *HtmlCleaner) CleanHtml(root *html.Node) {
 	cleaner.clean_attributes(cleaner.Article)
 }
 
+var (
+  unlikely *regexp.Regexp = regexp.MustCompile(`combx|comment|community|disqus|extra|foot|header|menu|remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate|pagination|pager|popup|tweet|twitter`)
+)
+
 func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n *html.Node) {
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
 		if child.Type == html.CommentNode {
@@ -97,7 +98,7 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 			drop := false
 			child.Data = strings.ToLower(child.Data)
       idc := get_attribute(child, "class") + get_attribute(child, "id")
-/*
+
       if regexp.MatchString(idc) {
         drop = true
         *dropping = append(*dropping, child)
@@ -106,76 +107,62 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
         case "script", "link", "iframe", "nav", "aside", "noscript" :
           *dropping = append(*dropping, child)
           drop = true
-        }
-      }
-      */
-			if child.Data == "script" ||
-				child.Data == "link" ||
-				child.Data == "style" ||
-				child.Data == "iframe" ||
-				child.Data == "nav" ||
-				child.Data == "aside" ||
-				child.Data == "noscript" {
-				*dropping = append(*dropping, child)
-				drop = true
-			} else if child.Data == "meta" {
-				cleaner.grab_keywords(child)
-				cleaner.grab_description(child)
-			} else if child.Data == "title" {
-				cleaner.grab_title(child)
-			} else if child.Data == "head" {
-				cleaner.head = child
-			} else if child.Data == "body" {
-				cleaner.Article = child
-			} else if child.Data == "br" {
-				child.Data = "p"
-				child.DataAtom = atom.Lookup([]byte(child.Data))
-			} else if child.Data == "article" {
-				if cleaner.Article == nil || cleaner.Article.Data == "body" {
-					cleaner.Article = child
-				} else {
-					pl := len(get_inner_text(cleaner.Article))
-					cl := len(get_inner_text(child))
-					if cl > pl {
-						cleaner.Article = child
-					}
-				}
-
-			} else if child.Data == "ul" {
+        case "meta" :
+          cleaner.grab_keywords(child)
+          cleaner.grab_description(child)
+        case "title" :
+          cleaner.grab_title(child)
+        case "head" :
+          cleaner.head = child
+        case "body" :
+          cleaner.Article = child
+        case "br" :
+          child.Data = "p"
+        case "article" :
+          if cleaner.Article == nil || cleaner.Article.Data == "body" {
+            cleaner.Article = child
+          } else {
+            pl := len(get_inner_text(cleaner.Article))
+            cl := len(get_inner_text(child))
+            if cl > pl {
+              cleaner.Article = child
+            }
+          }
+        case "ul" :
 				/*				if is_menu(child) {
 									*dropping = append(*dropping, child)
 									drop = true
 								}
 				*/
-			} else if child.Data == "h1" {
-				cleaner.header1s = append(cleaner.header1s, child)
-			} else if child.Data == "h2" {
-				cleaner.header2s = append(cleaner.header2s, child)
-			} else if child.Data == "h3" {
-				cleaner.header3s = append(cleaner.header3s, child)
-			} else if child.Data == "h4" {
-				cleaner.header4s = append(cleaner.header4s, child)
-			} else if child.Data == "form" {
-				cleaner.forms = append(cleaner.forms, child)
-			} else if child.Data == "ul" {
-				cleaner.uls = append(cleaner.uls, child)
-			} else if child.Data == "ol" {
-				cleaner.ols = append(cleaner.ols, child)
-			} else if child.Data == "table" {
-				cleaner.tables = append(cleaner.tables, child)
-			} else if child.Data == "option" {
-				child.Data = "a"
-			} else {
-				/* 有些菜单使用了这个属性，如果直接去除，菜单头会被保留下来*/
-				st := get_attribute(child, "style")
-				if strings.Contains(st, "display") && (strings.Contains(st, "none")) {
-					//*dropping = append(*dropping, child)
-					//drop = true
-					log.Println(child)
-					child.Data = "form"
-				}
-			}
-
+        case "h1":
+          cleaner.header1s = append(cleaner.header1s, child)
+        case "h2":
+          cleaner.header2s = append(cleaner.header2s, child)
+        case "h3":
+          cleaner.header3s = append(cleaner.header3s, child)
+        case "h4":
+          cleaner.header4s = append(cleaner.header4s, child)
+        case "form":
+          cleaner.forms = append(cleaner.forms, child)
+        case "ul":
+          cleaner.uls = append(cleaner.uls, child)
+        case "ol":
+          cleaner.ols = append(cleaner.ols, child)
+        case "table":
+          cleaner.tables = append(cleaner.tables, child)
+        case "option" :
+          child.Data = "a"
+        default:
+          /* 有些菜单使用了这个属性，如果直接去除，菜单头会被保留下来*/
+          st := get_attribute(child, "style")
+          if strings.Contains(st, "display") && (strings.Contains(st, "none")) {
+            //*dropping = append(*dropping, child)
+            //drop = true
+            log.Println(child)
+            child.Data = "form"
+          }
+        }
+      }
 			if !drop {
 				cleaner.clean_unprintable_element(dropping, child)
 			}
