@@ -2,155 +2,137 @@ package document
 
 import (
 	"code.google.com/p/go.net/html"
+	"log"
+
+//	"regexp"
 )
 
-type struct Readabilitier {
-  content       []readability_score
-  candidates    map[*html.Node] *readability_score
-  article       *html.Node
+type Readabilitier struct {
+	content    []readability_score
+	candidates map[*html.Node]*readability_score
+	article    *readability_score
+	body       *html.Node
 }
 
 func FlattenHtmlDocument(body *html.Node) (doc *html.Node, article *html.Node) {
-  doc, _, article = create_html_sketch()
+	doc, _, article = create_html_sketch()
 	flatten_block_node(body, article, false, "")
 	return
 }
 
 func NewReadabilitier(body *html.Node) *Readabilitier {
-  r := &Readabilitier{ content : []readability_score{},
-    candidate : map[*html.Node]readability_score{},
-    article : body
-  }
-  r.flatten_paragraphs(body)
+	r := &Readabilitier{
+		content:    []readability_score{},
+		candidates: make(map[*html.Node]*readability_score),
+		body:       body}
 
-  top_candi *readability_score := nil
-  for _, candi : range r.candidates {
-    candi.content_score = candi.content_score * (100 - get_link_density(candi.Node)) / 100
-    if top_candi == nil || candi.content_score > top_candi.content_score {
-      top_candi = candi
-    }
-  }
-  if top_candi != nil {
-    r.article = top_candi
-  }
+	log.Println("readability flatten paragraphs")
+	r.extract_paragraphs(body)
+
+	var top_candi *readability_score = nil
+	for _, candi := range r.candidates {
+		candi.content_score = candi.content_score * (100 - candi.link_density()) / 100
+		if top_candi == nil || candi.content_score > top_candi.content_score {
+			top_candi = candi
+		}
+	}
+	if top_candi != nil {
+		r.article = top_candi
+		log.Println("top-article", r.article)
+	}
+	return r
 }
+
 /**
          * Now that we have the top candidate, look through its siblings for content that might also be related.
          * Things like preambles, content split by ads that we removed, etc.
 **/
 
-func (this *Readabilitier) prepare_article() *html.Node {
-  doc, body, article :=  create_html_sketch()
-  threshold := max(10, this.article.content_score / 5)
+func (this *Readabilitier) CreateArticle() (*html.Node, *html.Node) {
+	doc, _, article := create_html_sketch()
+	threshold := max(10, this.article.content_score/5)
 
-  class_name := get_attribute(this.article.Node, "class")
+	class_name := get_attribute(this.article.element, "class")
 
-  foreach_child(this.article.Node.Parent, func(neib *html.Node) {
-    if neib == this.article.Node {
-      append = true
-    }
-    if ext, ok := candidates[neib]; ok {
-      cn := get_attribute(neib, "class")
-      if len(cn) > 0 && cn == class_name {
-        append = true
-      }
-      if ext.content_score > threshold {
-        append = true
-      }
-    } else if neib.Type == html.ElementNode && neib.Data == "p" {
-      ld, words = get_link_density_words(neib)
-      if words > 65 && ld < 0.2223 {
-        append = true
-      }
-    }
-    if append {
-      flatten_block_node(neib, article)
-    }
-  })
-  this.article = article
-  return doc
+	foreach_child(this.article.element.Parent, func(neib *html.Node) {
+		append := false
+		if neib == this.article.element {
+			append = true
+		} else if ext, ok := this.candidates[neib]; ok {
+			cn := get_attribute(neib, "class")
+			if len(cn) > 0 && cn == class_name {
+				append = true
+				log.Println("append same class", ext)
+			}
+			if ext.content_score > threshold {
+				append = true
+				log.Println("append high score neib", ext)
+			}
+		} else if neib.Type == html.ElementNode && neib.Data == "p" {
+			sc := new_boilerpipe_score(neib)
+			if sc.words > 65 && sc.link_density() < 22 {
+				append = true
+				log.Println("append high p", neib)
+			}
+		}
+		if append {
+			flatten_block_node(neib, article, false, "")
+		}
+	})
+	return doc, article
 }
-
-func (this *Readabilitier) flatten_paragraphs(n *html.Node) {
-  switch{
-  case n.Data == "form" || n.Data == "input" || n.Data == "textarea" :
-//    this.content = append(this.content, make_readability_score(n))
-  case hasInlineNodes(n) :
-    this.content = append(this.content, make_readability_score(n))
-  default:
-    foreach_child(n, func(child *html.Node) {
-      this.flatten_paragraphs(child)
-    })
-  }
-}
-
-func new_readability_score(n *html.Node) *readability_score {
-  rtn := &readability_score{Node : n}
-  switch n.Data {
-  case "div" :
-    rtn.content_score += 5
-  case "pre", "td", "blockquote" :
-    rtn.content_score += 3
-  case "address", "ol", "ul", "dl", "dd", "dt", "li":
-    rtn.content_score -= 3
-  case "form":
-    rtn.content_score -= 10
-  case "h1", "h2", "h3", "h4", "h4", "h6":
-    rtn.content_score -= 5
-  }
-  rtn.content_score += get_class_weight(n, "class") + get_class_weight(n, "id")
-  return rtn
-}
-
-var (
-  negative *regexp.Regexp =
-    regexp.MustCompile(`article|body|content|entry|hentry|main|page|pagination|post|text|blog|story`)
-
-  positive *regexp.Regexp =
-    regexp.MustCompile(`(?i)combx|comment|com-|contact|foot|footer|footnote|masthead|media|meta|outbrain|promo|related|scroll|shoutbox|sidebar|sponsor|shopping|tags|tool|widget`)
-
-  extraneous *regexp.Regexp =
-    regexp.MustCompile(`(?i)  print|archive|comment|discuss|e[\-]?mail|share|reply|all|login|sign|single`)
-
-)
-
 func (this *Readabilitier) make_readability_score(n *html.Node) *readability_score {
-  rtn := new_readability_score(n)
-  var (
-    pext *readability_score = nil
-    grandext *readability_score = nil
-  )
-  parent := n.Parent
-  var grand *html.Node = nil
-  if parent != nil {
-    if i, ok := this.candidate[parent]; ok {
-      pext = i
-    } else {
-      pext = new_readability_score(parent)
-      this.candidate[parent] = pext
-    }
-    grand = parent.Parent
-  }
-  if grand != nil {
-    if i, ok := this.candidate[grand]; ok {
-      grandext = i
-    } else [
-      grandext = new_ndoe_ext(grand)
-      this.candidate[grand] = grandext
-    }
-  }
-  rtn.txt = get_inner_text(n)
-  score := commas(rtn.txt) + 1
-  // wrap lines
-  score += min(len(rtn.txt) / 65, 3)
-  this.content_score += score
-  if pext != nil {
-    pext.content_score += score
-  }
-  if grandext != nil {
-    grandext.content_score += score / 2
-  }
-  return rtn
+	rtn := new_readability_score(n)
+	var (
+		pext     *readability_score = nil
+		grandext *readability_score = nil
+	)
+	parent := n.Parent
+	var grand *html.Node = nil
+	if parent != nil {
+		if i, ok := this.candidates[parent]; ok {
+			pext = i
+		} else {
+			pext = new_readability_score(parent)
+			this.candidates[parent] = pext
+		}
+		grand = parent.Parent
+	}
+	if grand != nil {
+		if i, ok := this.candidates[grand]; ok {
+			grandext = i
+		} else {
+			grandext = new_readability_score(grand)
+			this.candidates[grand] = grandext
+		}
+	}
+	bc := new_boilerpipe_score(n)
+	score := bc.commas + 1
+	// wrap lines
+	score += min(bc.lines(), 3)
+	rtn.content_score += score
+	if pext != nil {
+		pext.content_score += score
+	}
+	if grandext != nil {
+		grandext.content_score += score / 2
+	}
+	return rtn
+}
+
+func (this *Readabilitier) extract_paragraphs(n *html.Node) {
+	switch {
+	case n.Data == "form" || n.Data == "input" || n.Data == "textarea":
+		//    this.content = append(this.content, make_readability_score(n))
+
+		// has only inlines here
+	case hasInlineNodes(n):
+		this.content = append(this.content, *this.make_readability_score(n))
+	default:
+		foreach_child(n, func(child *html.Node) {
+			this.extract_paragraphs(child)
+		})
+	}
 }
 
 // text-node
@@ -178,14 +160,27 @@ func flatten_block_node(b *html.Node, article *html.Node, flatt bool, class stri
 }
 
 func get_class_weight(n *html.Node, attname string) int {
-  c := get_attribute(n, attname)
+	c := get_attribute(n, attname)
 
-  weight := 0
-  if negative.MatchString(c) {
-    weight -= 25
-  }
-  if positive.MatchString(c) {
-    weight += 25
-  }
-  return weight
+	weight := 0
+	if negative.MatchString(c) {
+		weight -= 25
+	}
+	if positive.MatchString(c) {
+		weight += 25
+	}
+	return weight
+}
+
+func max(l int, r int) int {
+	if l > r {
+		return l
+	}
+	return r
+}
+func min(l int, r int) int {
+	if l < r {
+		return l
+	}
+	return r
 }

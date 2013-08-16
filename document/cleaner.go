@@ -4,9 +4,10 @@ import (
 	"code.google.com/p/go.net/html"
 	"code.google.com/p/go.net/html/atom"
 	"log"
+	"regexp"
 	"strings"
 	"unicode"
-  "regexp"
+	"strconv"
 )
 
 type HtmlCleaner struct {
@@ -26,6 +27,10 @@ type HtmlCleaner struct {
 	titles      []string
 	keywords    []string
 	author      []string
+
+  links         int
+  imgs          int
+
 	description string
 }
 
@@ -39,6 +44,17 @@ func (cleaner *HtmlCleaner) grab_keywords(meta *html.Node) {
 func (cleaner *HtmlCleaner) grab_description(meta *html.Node) {
 }
 
+
+/*
+茅于轼 | 中国是个忘恩负义的国家吗？ - 中国数字时代
+中国抗议日内阁成员参拜靖国神社 - BBC中文网 - 两岸
+媒体札记：胜利者姿态 - 评论 - FT中文网
+发现已知最大的贼兽: 金氏树贼兽(图)  - 阿波罗新闻网
+GFW BLOG（功夫网与翻墙）: 通过 ToyVPN 网站获取 5 个免费的 PPTP VPN 帐号
+\r\t[导入]VK Cup 2012 Qualification Round 1    E. Phone Talks - ACM博客_kuangbin - C++博客
+译言网 | 南非零售销售额六月份缓慢增长
+南方周末 - 广州公安局原副局长受贿600余万被起诉
+*/
 func (cleaner *HtmlCleaner) grab_title(title *html.Node) {
 
 }
@@ -87,7 +103,7 @@ func (cleaner *HtmlCleaner) CleanHtml(root *html.Node) {
 }
 
 var (
-  unlikely *regexp.Regexp = regexp.MustCompile(`combx|comment|community|disqus|extra|foot|header|menu|remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate|pagination|pager|popup|tweet|twitter`)
+	unlikely *regexp.Regexp = regexp.MustCompile(`combx|comment|community|disqus|extra|foot|header|menu|remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate|pagination|pager|popup|tweet|twitter`)
 )
 
 func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n *html.Node) {
@@ -97,72 +113,67 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 		} else if child.Type == html.ElementNode {
 			drop := false
 			child.Data = strings.ToLower(child.Data)
-      idc := get_attribute(child, "class") + get_attribute(child, "id")
+			idc := get_attribute(child, "class") + get_attribute(child, "id")
 
-      if regexp.MatchString(idc) {
-        drop = true
-        *dropping = append(*dropping, child)
-      } else {
-        switch child.Data {
-        case "script", "link", "iframe", "nav", "aside", "noscript" :
-          *dropping = append(*dropping, child)
-          drop = true
-        case "meta" :
-          cleaner.grab_keywords(child)
-          cleaner.grab_description(child)
-        case "title" :
-          cleaner.grab_title(child)
-        case "head" :
-          cleaner.head = child
-        case "body" :
-          cleaner.Article = child
-        case "br" :
-          child.Data = "p"
-        case "article" :
-          if cleaner.Article == nil || cleaner.Article.Data == "body" {
-            cleaner.Article = child
-          } else {
-            pl := len(get_inner_text(cleaner.Article))
-            cl := len(get_inner_text(child))
-            if cl > pl {
-              cleaner.Article = child
-            }
+			if unlikely.MatchString(idc) {
+				drop = true
+				*dropping = append(*dropping, child)
+			} else {
+				switch child.Data {
+				case "script", "link", "iframe", "nav", "aside", "noscript", "style":
+					*dropping = append(*dropping, child)
+					drop = true
+				case "meta":
+					cleaner.grab_keywords(child)
+					cleaner.grab_description(child)
+				case "title":
+					cleaner.grab_title(child)
+				case "head":
+					cleaner.head = child
+				case "body":
+					cleaner.Article = child
+				case "br":
+					child.Data = "p"
+				case "article":
+					if cleaner.Article == nil || cleaner.Article.Data == "body" {
+						cleaner.Article = child
+					} else {
+						pl := len(get_inner_text(cleaner.Article))
+						cl := len(get_inner_text(child))
+						if cl > pl {
+							cleaner.Article = child
+						}
+					}
+				case "h1":
+					cleaner.header1s = append(cleaner.header1s, child)
+				case "h2":
+					cleaner.header2s = append(cleaner.header2s, child)
+				case "h3":
+					cleaner.header3s = append(cleaner.header3s, child)
+				case "h4":
+					cleaner.header4s = append(cleaner.header4s, child)
+				case "form":
+					cleaner.forms = append(cleaner.forms, child)
+				case "ul":
+					cleaner.uls = append(cleaner.uls, child)
+				case "ol":
+					cleaner.ols = append(cleaner.ols, child)
+				case "table":
+					cleaner.tables = append(cleaner.tables, child)
+				case "option":
+					child.Data = "a"
+        case "img":
+          cleaner.imgs++
+          trim_small_image(child)
+				default:
+          switch child.Data{
+          case "a":
+            cleaner.links++
           }
-        case "ul" :
-				/*				if is_menu(child) {
-									*dropping = append(*dropping, child)
-									drop = true
-								}
-				*/
-        case "h1":
-          cleaner.header1s = append(cleaner.header1s, child)
-        case "h2":
-          cleaner.header2s = append(cleaner.header2s, child)
-        case "h3":
-          cleaner.header3s = append(cleaner.header3s, child)
-        case "h4":
-          cleaner.header4s = append(cleaner.header4s, child)
-        case "form":
-          cleaner.forms = append(cleaner.forms, child)
-        case "ul":
-          cleaner.uls = append(cleaner.uls, child)
-        case "ol":
-          cleaner.ols = append(cleaner.ols, child)
-        case "table":
-          cleaner.tables = append(cleaner.tables, child)
-        case "option" :
-          child.Data = "a"
-        default:
-          /* 有些菜单使用了这个属性，如果直接去除，菜单头会被保留下来*/
-          st := get_attribute(child, "style")
-          if strings.Contains(st, "display") && (strings.Contains(st, "none")) {
-            //*dropping = append(*dropping, child)
-            //drop = true
-            log.Println(child)
-            child.Data = "form"
-          }
-        }
-      }
+					/* 有些菜单使用了这个属性，如果直接去除，菜单头会被保留下来*/
+          trim_display_none(child)
+				}
+			}
 			if !drop {
 				cleaner.clean_unprintable_element(dropping, child)
 			}
@@ -174,6 +185,35 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 	return
 }
 
+func trim_small_image(img *html.Node) {
+  width, werr := strconv.ParseInt(get_attribute(img, "width"), 0, 32)
+  height, herr := strconv.ParseInt(get_attribute(img, "height"), 0, 32)
+  if werr != nil || herr != nil || img.Parent == nil {
+    return
+  }
+  if width*height < 180*180 && img.Parent.Data == "a" {
+    for idx, attr := range img.Attr {
+      if attr.Key == "src" {
+        img.Attr[idx].Key = "srcbackup"
+        log.Println(img)
+      }
+    }
+  }
+}
+func remove_children(a *html.Node) {
+  for a.FirstChild != nil {
+    a.RemoveChild(a.FirstChild)
+  }
+}
+func trim_display_none(n *html.Node) {
+  st := get_attribute(n, "style")
+  if strings.Contains(st, "display") && (strings.Contains(st, "none")) {
+    //*dropping = append(*dropping, child)
+    //drop = true
+    log.Println("hide node", n.Data)
+    n.Data = "form"
+  }
+}
 // reserve id, class, href, src
 func (this *HtmlCleaner) clean_attributes(n *html.Node) {
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
@@ -215,7 +255,7 @@ func (this *HtmlCleaner) clean_block_node(n *html.Node) {
 			if isInlineNode(child) {
 				p := child.PrevSibling
 				if p == nil || p.Data != "p" {
-					p = NewHtmlElement("p")
+					p = create_element("p")
 					n.InsertBefore(p, child)
 				}
 				n.RemoveChild(child)
@@ -300,7 +340,7 @@ func (this *HtmlCleaner) clean_empty_nodes(n *html.Node) {
 		child = next
 	}
 
-	if isEmptyNode(n) {
+	if !is_not_empty(n) {
 		parent := n.Parent
 		parent.RemoveChild(n)
 	}
@@ -315,7 +355,7 @@ func (this *HtmlCleaner) trim_empty_spaces_func(n *html.Node, trim func(string) 
 		} else {
 			this.trim_empty_spaces_func(child, trim)
 		}
-		if !isEmptyNode(child) {
+		if is_not_empty(child) {
 			break
 		}
 		next := child.NextSibling
