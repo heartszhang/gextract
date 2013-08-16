@@ -2,37 +2,32 @@ package document
 
 import (
 	"code.google.com/p/go.net/html"
-	"code.google.com/p/go.net/html/atom"
 	"regexp"
 	"strings"
 	"unicode"
 )
 
-func NewHtmlElement(name string) *html.Node {
-	return &html.Node{Type: html.ElementNode,
-		DataAtom: atom.Lookup([]byte(name)),
-		Data:     name}
-}
-
-func isEmptyNode(n *html.Node) bool {
-	d := n.Data
-	//	d := strings.TrimSpace(n.Data)
-	nt := n.Type == html.TextNode && len(d) > 0
-
-	//a, video, embed, img, audio
-	ne := n.Type == html.ElementNode && n.FirstChild == nil && is_object(n)
-
-	nf := n.Type == html.ElementNode && (n.Data == "form" || n.Data == "textarea")
-
-	hasc := false
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		t := isEmptyNode(c)
-		if !t {
-			hasc = true
-			break
+func is_not_empty(n *html.Node) bool {
+	switch n.Type {
+	case html.TextNode:
+		return len(n.Data) >= 0
+	case html.ElementNode:
+		switch n.Data {
+		case "video", "audio", "object", "embed", "img", "a":
+			return true
+		case "form", "input", "textarea":
+			return true
+		default:
+			rtn := false
+			foreach_child(n, func(child *html.Node) {
+				cne := is_not_empty(child)
+				rtn = cne || rtn
+			})
+			return rtn
 		}
+	default:
+		return false
 	}
-	return !(nt || ne || nf || hasc)
 }
 
 func hasBlockNodes(n *html.Node) bool {
@@ -63,20 +58,22 @@ func isInlineNode(n *html.Node) bool {
 }
 
 func is_inline_element(n *html.Node) bool {
-	rtn := n.Data == "a" || n.Data == "font" ||
-		n.Data == "small" ||
-		n.Data == "span" || n.Data == "strong" || n.Data == "em" ||
-		n.Data == "dt" || n.Data == "dd" || n.Data == "br" ||
-		n.Data == "cite"
-	rtn = rtn || (n.Data == "li" && check_li_inline_mode(n))
-	return rtn
+	switch n.Data {
+	case "a", "font", "small", "span", "strong", "em", "dt", "dd", "br", "cite":
+		return true
+	case "li":
+		return check_li_inline_mode(n)
+	default:
+		return false
+	}
 }
 func is_object(n *html.Node) bool {
-	return n.Data == "img" ||
-		n.Data == "embed" ||
-		n.Data == "object" ||
-		n.Data == "video" ||
-		n.Data == "audio"
+	switch n.Data {
+	default:
+		return false
+	case "img", "embed", "object", "video", "audio":
+		return true
+	}
 }
 
 // ignorable: form
@@ -86,17 +83,18 @@ func isBlockNode(n *html.Node) bool {
 	if n.Type != html.ElementNode && n.Type != html.DocumentNode {
 		return false
 	}
-	name := n.Data
-	rtn := name == "div" || name == "p" || name == "pre" ||
-		name == "h1" || name == "h2" || name == "h3" || name == "h4" ||
-		name == "h5" || name == "h6" || name == "body" ||
-		name == "html" || name == "article" || name == "section" || name == "head" ||
-		name == "ol" || name == "ul" || name == "dl" ||
-		name == "tbody" || name == "td" || name == "tr" || name == "table" ||
-		name == "form" || name == "textarea" || name == "input"
 
-	rtn = rtn || (name == "li" && !check_li_inline_mode(n))
-	return rtn
+	switch n.Data {
+	case "div", "p", "pre", "h1", "h2", "h3", "h4", "h5", "h6",
+		"body", "html", "article", "section", "head", "ol", "ul", "dl",
+		"tbody", "td", "tr", "table", "form", "textarea", "input":
+		return true
+	case "li":
+		return !check_li_inline_mode(n)
+	default:
+		return false
+	}
+
 }
 
 // number
@@ -212,7 +210,7 @@ func for_each_child(n *html.Node, f func(*html.Node)) {
 	}
 }
 
-func count_words(txt string) (tokens int, words int) {
+func count_words(txt string) (tokens int, words int, commas int) {
 	tkns := tokenize(txt)
 	tokens = len(tkns)
 	for _, token := range tkns {
@@ -287,12 +285,12 @@ func get_element_by_tag_name(n *html.Node, tag string) []*html.Node {
 func clean_element_before_header(body *html.Node, name string) {
 	child := body.FirstChild
 	for child != nil {
-		if child.Type == html.ElementNode && child.Data == name {
+		if child.Type == html.ElementNode && child.Data != name {
 			next := child.NextSibling
 			body.RemoveChild(child)
 			child = next
 		} else {
-			child = child.NextSibling
+			break
 		}
 	}
 }
@@ -319,8 +317,7 @@ func find_article_via_header_i(h *html.Node, name string, cl int) *html.Node {
 	return find_article_via_header_i(parent, name, cl)
 }
 func is_unflatten_node(b *html.Node) bool {
-	return b.Data == "table" || b.Data == "ul" || b.Data == "ol" ||
-		b.Data == "form" || b.Data == "textarea" || b.Data == "input"
+	return b.Data == "form" || b.Data == "textarea" || b.Data == "input"
 }
 
 func clone_inline(n *html.Node) (inline *html.Node) {
@@ -360,6 +357,7 @@ func create_p(n *html.Node) (p *html.Node) {
 
 	return
 }
+
 func try_update_class_attr(b *html.Node, class string) {
 	if len(class) > 0 {
 		ca := make([]html.Attribute, len(b.Attr)+1)
@@ -369,6 +367,7 @@ func try_update_class_attr(b *html.Node, class string) {
 	}
 }
 
+/*
 func get_link_density(n *html.Node) int{
   ld,_ := get_link_density_words(n)
   return ld
@@ -393,7 +392,7 @@ func get_link_density_words(n *html.Node) int,int {
   }
   return ll * 100 / wl,0
 }
-
+*/
 func cat_class(b *html.Node, class string) (rtn string) {
 	c := get_attribute(b, "class")
 	id := get_attribute(b, "id")
@@ -416,5 +415,5 @@ func create_html_sketch() (doc *html.Node, body *html.Node, article *html.Node) 
 	doc.AppendChild(root)
 	root.AppendChild(body)
 	body.AppendChild(article)
-  return
+	return
 }
