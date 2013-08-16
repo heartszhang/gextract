@@ -1,23 +1,86 @@
 package document
+
 import (
 	"code.google.com/p/go.net/html"
 )
 
 type boilerpipe_score struct {
-	element       *html.Node
-	chars         int // alpha, digits, punc, zh-char
-	words         int // word or zh-char
-	tokens        int // number, punc, zh-char or word
-	lines         int
-	anchor_words  int
-	words_wrapped int
-	text_density  float64
-	link_density  float64
-
-	text string
+	element      *html.Node
+	words        int // word or zh-char
+	tokens       int // number, punc, zh-char or word
+	anchor_words int
+	imgs         int
+	anchor_imgs  int
+	objects      int
+	forms        int
+	anchors      int
+	commas       int
+	inner_text   string
 
 	is_content bool
-	has_image  bool
-	has_object bool // object, embed, video, audio
-	is_form    bool
+}
+
+func new_boilerpipe_score(n *html.Node) boilerpipe_score {
+	p := boilerpipe_score{element: n}
+	switch {
+	case n.Type == html.TextNode:
+		p.inner_text += n.Data
+		t, w, c := count_words(n.Data)
+		p.tokens += t
+		p.words += w
+		p.commas += c
+	case n.Type == html.ElementNode && n.Data == "a":
+		foreach_child(n, func(child *html.Node) {
+			np := new_boilerpipe_score(child)
+			p.add(np)
+			p.anchor_words += np.words
+			p.anchor_imgs += np.imgs
+		})
+		p.anchors++
+	case n.Type == html.ElementNode && n.Data == "img":
+		p.imgs++
+	case n.Type == html.ElementNode &&
+		(n.Data == "form" || n.Data == "input" || n.Data == "textarea"):
+		p.forms++
+	case is_object(n):
+		p.objects++
+	default:
+		foreach_child(n, func(child *html.Node) {
+			np := new_boilerpipe_score(child)
+			p.add(np)
+		})
+	}
+	return p
+}
+
+func (this *boilerpipe_score) add(rhs boilerpipe_score) {
+	this.anchors += rhs.anchors
+	this.anchor_words += rhs.anchor_words
+	this.inner_text += rhs.inner_text
+	this.tokens += rhs.tokens
+	this.words += rhs.words
+	this.anchor_imgs += rhs.anchor_imgs
+	this.imgs += rhs.imgs
+	this.objects += rhs.objects
+	//  this.forms += rhs.forms
+}
+
+func (this *boilerpipe_score) link_density() int {
+	switch {
+	case this.words == 0 && this.anchors > 0:
+		return 100
+	case this.words == 0 && this.anchors == 0:
+		return 0
+	default:
+		return (this.anchor_words + this.anchor_imgs*4) * 100 / (this.words + this.anchor_imgs*4)
+	}
+}
+
+const wordwrap = 65
+
+func (this boilerpipe_score) lines() int {
+	return (this.words + wordwrap - 1) / wordwrap
+}
+func (this boilerpipe_score) wrapped_words() int {
+	return this.words - (this.words % wordwrap)
 }
