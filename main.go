@@ -28,19 +28,25 @@ func main() {
 		}
 	}()
 	flag.Parse()
-
-	if len(*url) != 0 {
-		fetch_url(*url, *html_file)
-	}
 	if len(*html_file) == 0 {
 		fmt.Println("html_file is required")
 		return
+	}
+	os.Remove(*html_file)
+	os.Remove("2.html")
+	os.Remove("3.html")
+	os.Remove("4.html")
+	os.Remove("5.html")
+
+	if len(*url) != 0 {
+		htmldoc.FetchUrl(*url, *html_file)
 	}
 	// data, err := ioutil.ReadFile(*html_file)
 	f, err := os.Open(*html_file)
 	if err != nil {
 		panic(err)
 	}
+	defer f.Close()
 	reader := bufio.NewReader(f)
 	doc, err := html.Parse(reader)
 	if err != nil {
@@ -52,7 +58,11 @@ func main() {
 
 	write_html(doc, "2.html")
 
-	doc1, article := htmldoc.FlattenHtmlDocument(cleaner.Article)
+	//	doc1, _ := htmldoc.FlattenHtmlDocument(cleaner.Article)
+	//	write_html(doc1, "3.html")
+
+	rdr := htmldoc.NewReadabilitier(cleaner.Article)
+	doc1, article := rdr.CreateArticle()
 	write_html(doc1, "3.html")
 
 	boiler := htmldoc.NewBoilerpiper(article)
@@ -78,7 +88,6 @@ func write_html(doc *html.Node, fp string) {
 }
 
 func fetch_url(url string, ofile string) {
-	log.Println("get from", url)
 	resp, err := http.Get(url)
 	if err != nil {
 		panic(err)
