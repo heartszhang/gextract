@@ -20,6 +20,7 @@ type boilerpipe_score struct {
 	is_content bool
 }
 
+//包含n的子孙的评分
 func new_boilerpipe_score(n *html.Node) boilerpipe_score {
 	p := boilerpipe_score{element: n}
 	switch {
@@ -65,6 +66,7 @@ func (this *boilerpipe_score) add(rhs boilerpipe_score) {
 	//  this.forms += rhs.forms
 }
 
+//有链接链接文字的情况，认为全部是图片链接
 func (this *boilerpipe_score) link_density() int {
 	switch {
 	case this.words == 0 && this.anchors > 0:
