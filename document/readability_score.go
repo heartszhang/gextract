@@ -9,19 +9,6 @@ import (
 type readability_score struct {
 	boilerpipe_score
 	content_score int
-	/*	*html.Node
-		content_score int
-		link_density  int // percent
-		words         int
-		lines         int
-		commas        int
-		chars         int
-		tokens        int
-
-		images        int
-		anchors       int
-		anchor_images int
-	*/
 }
 
 func new_readability_score(n *html.Node) *readability_score {

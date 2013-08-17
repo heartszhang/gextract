@@ -56,7 +56,11 @@ func FetchUrl(url string, localpath string) error {
 
 	of.Seek(0, 0)
 	if len(ct) == 0 {
-		ct = "gb2312"
+		ct = "gbk"
+	}
+	//某些技术网站使用繁体，但标识gb2312
+	if ct == "gb2312" {
+		ct = "gbk"
 	}
 	if ct != "utf-8" {
 		in, _ := ioutil.ReadAll(of)
