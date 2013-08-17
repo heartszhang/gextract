@@ -121,14 +121,17 @@ func is_word(t string) bool {
 }
 
 // n.Data has been lowered
+/*
 func is_anchor(n *html.Node) bool {
 	return (n.Type == html.ElementNode && n.Data == "a")
 }
+*/
 
 func has_children(this *html.Node) bool {
 	return this.FirstChild != nil
 }
 
+/*
 func print_line(n *html.Node) string {
 	line := ""
 	if n.Type == html.TextNode {
@@ -139,22 +142,24 @@ func print_line(n *html.Node) string {
 	}
 	return line
 }
+*/
 
+/*
 func is_a_has_valid_href(a *html.Node) bool {
 	isa := a.Type == html.ElementNode && a.Data == "a"
 	//	href := get_attribute(a, "href")
 	//	return isa && len(href) > 0 && !strings.Contains(href, "javascript:")
 	return isa
 }
+*/
 
-func get_attribute(n *html.Node, name string) (rtn string) {
+func get_attribute(n *html.Node, name string) string {
 	for _, a := range n.Attr {
 		if a.Key == name {
-			rtn = a.Val
-			return
+			return a.Val
 		}
 	}
-	return
+	return ""
 }
 
 var (
@@ -172,6 +177,8 @@ func get_inner_text(n *html.Node) string {
 	if n.Type == html.TextNode {
 		return n.Data
 	}
+
+	// all comments has been removed
 	rtn := ""
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
 		rtn += get_inner_text(child)
@@ -179,18 +186,11 @@ func get_inner_text(n *html.Node) string {
 	return rtn
 }
 
-func anchor_text(n *html.Node) (rtn string) {
-	if n.Type == html.ElementNode && n.Data == "a" {
-		rtn = get_inner_text(n)
-		//		log.Println("anchor: ", rtn)
-		return
-	}
-	for child := n.FirstChild; child != nil; child = child.NextSibling {
-		rtn += " " + anchor_text(child)
-	}
-	return
+func GetInnerText(n *html.Node) string {
+	return get_inner_text(n)
 }
 
+/*
 func has_decendant_type(n *html.Node, name string) bool {
 	if n.Type == html.ElementNode && n.Data == name {
 		return true
@@ -203,6 +203,7 @@ func has_decendant_type(n *html.Node, name string) bool {
 	}
 	return false
 }
+*/
 
 func for_each_child(n *html.Node, f func(*html.Node)) {
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
@@ -211,6 +212,13 @@ func for_each_child(n *html.Node, f func(*html.Node)) {
 }
 
 func count_words(txt string) (tokens int, words int, commas int) {
+
+	for _, c := range txt {
+		if unicode.IsPunct(c) {
+			commas++
+		}
+	}
+
 	tkns := tokenize(txt)
 	tokens = len(tkns)
 	for _, token := range tkns {
@@ -221,6 +229,7 @@ func count_words(txt string) (tokens int, words int, commas int) {
 	return
 }
 
+/*
 func has_decendant_object(n *html.Node) bool {
 	if n.Type == html.ElementNode && is_object(n) {
 		return true
@@ -233,6 +242,7 @@ func has_decendant_object(n *html.Node) bool {
 	}
 	return false
 }
+*/
 
 func create_element(name string) (node *html.Node) {
 	return &html.Node{Type: html.ElementNode, Data: name}
@@ -242,6 +252,7 @@ func create_text(txt string) (node *html.Node) {
 	return &html.Node{Type: html.TextNode, Data: txt}
 }
 
+// 需要换行的li都认为不再是inline模式。这个函数主要使用来检查使用Li构造的menu
 func check_li_inline_mode(li *html.Node) bool {
 	if li.Parent == nil {
 		return false
@@ -255,6 +266,7 @@ func check_li_inline_mode(li *html.Node) bool {
 	return len(txt) < 60
 }
 
+/*
 func is_menu(ul *html.Node) bool {
 	lis := get_element_by_tag_name(ul, "li")
 	as := get_element_by_tag_name(ul, "a")
@@ -263,23 +275,21 @@ func is_menu(ul *html.Node) bool {
 	rtn := len(lis) > 0 && len(as)*10/len(lis) >= 5
 	return rtn
 }
+*/
 
-func get_element_by_tag_name(n *html.Node, tag string) []*html.Node {
-	rtn := []*html.Node{}
+func get_element_by_tag_name2(n *html.Node, tag string, set []*html.Node) []*html.Node {
 	foreach_child(n, func(child *html.Node) {
 		if child.Type == html.ElementNode && child.Data == tag {
-			rtn = append(rtn, child)
+			set = append(set, child)
 		} else if child.Type == html.ElementNode {
-			x := get_element_by_tag_name(child, tag)
-			if len(x) > 0 {
-				tmp := make([]*html.Node, len(x)+len(rtn))
-				copy(tmp, rtn)
-				copy(tmp[len(rtn):], x)
-				rtn = tmp
-			}
+			set = get_element_by_tag_name2(child, tag, set)
 		}
 	})
-	return rtn
+	return set
+}
+
+func get_element_by_tag_name(n *html.Node, tag string) []*html.Node {
+	return get_element_by_tag_name2(n, tag, []*html.Node{})
 }
 
 func clean_element_before_header(body *html.Node, name string) {
@@ -295,47 +305,38 @@ func clean_element_before_header(body *html.Node, name string) {
 	}
 }
 
-func find_article_via_header(h *html.Node, name string) *html.Node {
-	return find_article_via_header_i(h, name, 0)
-}
-
-func find_article_via_header_i(h *html.Node, name string, cl int) *html.Node {
+func find_article_via_header_i(h *html.Node) *html.Node {
 	parent := h.Parent
-	if cl == 0 {
-		cl = len(get_inner_text(h))
-	}
-	if cl == 0 {
-		return nil
-	}
 	pcl := 0
 	if parent != nil {
 		pcl = len(get_inner_text(parent))
+	} else {
+		return nil
 	}
-	if pcl*10/cl > 55 {
+	// 内容超过3行才行，每行大概又65个字符
+	if pcl > 195 {
 		return parent
 	}
-	return find_article_via_header_i(parent, name, cl)
+	return find_article_via_header_i(parent)
 }
+
 func is_unflatten_node(b *html.Node) bool {
 	return b.Data == "form" || b.Data == "textarea" || b.Data == "input"
 }
 
-func clone_inline(n *html.Node) (inline *html.Node) {
-	if n.Type == html.TextNode {
-		inline = create_text(n.Data)
-	} else {
-		inline = create_element(n.Data)
-	}
-	inline.Attr = []html.Attribute{}
-	for _, attr := range n.Attr {
-		if attr.Key == "src" || attr.Key == "href" {
-			inline.Attr = append(inline.Attr, attr)
-		}
-	}
+func clone_element_deep(n *html.Node) (inline *html.Node) {
+	inline = clone_element(n)
 	foreach_child(n, func(child *html.Node) {
-		i := clone_inline(child)
+		i := clone_element_deep(child)
 		inline.AppendChild(i)
 	})
+	return
+}
+
+func clone_element(n *html.Node) (inline *html.Node) {
+	inline = &html.Node{Type: n.Type, Data: n.Data}
+	inline.Attr = make([]html.Attribute, len(n.Attr))
+	copy(inline.Attr, n.Attr)
 	return
 }
 
@@ -345,16 +346,53 @@ func foreach_child(n *html.Node, dof func(*html.Node)) {
 	}
 }
 
-func create_p(n *html.Node) (p *html.Node) {
-	p = create_element("p")
-	foreach_child(n, func(child *html.Node) {
-		if child.Type == html.TextNode {
-			p.AppendChild(create_text(child.Data))
-		} else if child.Type == html.ElementNode {
-			p.AppendChild(clone_inline(child))
+/*
+func flatten_inline_node2(n *html.Node, parent *html.Node) {
+	inlines := []*html.Node{}
+	for i := n.FirstChild; i != nil; i = i.NextSibling {
+		if i.Type == html.TextNode {
+			parent.AppendChild(create_text(i.Data))
+		} else if i.Data == "img" || i.Data == "object" || i.Data == "video" || i.Data == "audio" {
+			parent.AppendChild(clone_inline(i))
+
+			// may be div
+		} else if isBlockNode(i) {
+			this.clean_inline_node(i)
+			inlines = append(inlines, i)
+		} else if i.Type == html.ElementNode && is_a_has_valid_href(i) {
+			this.clean_inline_node(i)
+			inlines = append(inlines, i)
+		} else if i.Type == html.ElementNode {
+			x := this.flatten_inline_node(i)
+			t := make([]*html.Node, len(inlines)+len(x))
+			copy(t, inlines)
+			copy(t[len(inlines):], x)
+			inlines = t
+		}
+	}
+	return inlines
+}
+*/
+
+func append_children(src *html.Node, target *html.Node) {
+	foreach_child(src, func(child *html.Node) {
+		switch {
+		case child.Type == html.TextNode:
+			target.AppendChild(create_text(child.Data))
+		case child.Data == "a" || child.Data == "img" || is_object(child):
+			// ommit all children elements
+			a := clone_element(child)
+			append_children(child, a)
+			target.AppendChild(a)
+		default:
+			append_children(child, target)
 		}
 	})
+}
 
+func create_p(n *html.Node) (p *html.Node) {
+	p = create_element("p")
+	append_children(n, p)
 	return
 }
 
@@ -416,4 +454,40 @@ func create_html_sketch() (doc *html.Node, body *html.Node, article *html.Node) 
 	root.AppendChild(body)
 	body.AppendChild(article)
 	return
+}
+
+/*
+func anchor2_text(n *html.Node) (rtn string) {
+	if n.Type == html.ElementNode && n.Data == "a" {
+		rtn = get_inner_text(n)
+		//		log.Println("anchor: ", rtn)
+		return
+	}
+	for child := n.FirstChild; child != nil; child = child.NextSibling {
+		rtn += " " + anchor2_text(child)
+	}
+	return
+}
+*/
+
+func is_ownered_by_a(a *html.Node) bool {
+	for p := a.Parent; p != nil; p = p.Parent {
+		if p.Type == html.ElementNode && p.Data == "a" {
+			return true
+		}
+	}
+	return false
+}
+
+func max(l int, r int) int {
+	if l > r {
+		return l
+	}
+	return r
+}
+func min(l int, r int) int {
+	if l < r {
+		return l
+	}
+	return r
 }
