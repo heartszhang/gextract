@@ -2,6 +2,7 @@ package document
 
 import (
 	"code.google.com/p/go.net/html"
+	"fmt"
 	"log"
 
 //	"regexp"
@@ -26,7 +27,7 @@ func NewReadabilitier(body *html.Node) *Readabilitier {
 		candidates: make(map[*html.Node]*readability_score),
 		body:       body}
 
-	log.Println("readability flatten paragraphs")
+	log.Println("readability flatten paragraphs", get_inner_text(body))
 	r.extract_paragraphs(body)
 
 	var top_candi *readability_score = nil
@@ -35,11 +36,13 @@ func NewReadabilitier(body *html.Node) *Readabilitier {
 		if top_candi == nil || candi.content_score > top_candi.content_score {
 			top_candi = candi
 		}
+		log.Println("candi-element:", candi)
 	}
 	if top_candi != nil {
 		r.article = top_candi
 		log.Println("top-article", r.article)
 	}
+
 	return r
 }
 
@@ -50,6 +53,9 @@ func NewReadabilitier(body *html.Node) *Readabilitier {
 
 func (this *Readabilitier) CreateArticle() (*html.Node, *html.Node) {
 	doc, _, article := create_html_sketch()
+	if this.article == nil {
+		return doc, article
+	}
 	threshold := max(10, this.article.content_score/5)
 
 	class_name := get_attribute(this.article.element, "class")
@@ -138,21 +144,23 @@ func (this *Readabilitier) extract_paragraphs(n *html.Node) {
 // text-node
 // <a>
 // <img> <object> <embed> <video> <audio>
-// <table> <ul> <ol> <form> <textarea> <input> will be reserved
+// <ul> <ol> <form> <textarea> <input> will be reserved
 func flatten_block_node(b *html.Node, article *html.Node, flatt bool, class string) {
 	cur_class := cat_class(b, class)
-
-	if flatt && is_unflatten_node(b) {
+	log.Println("flatten block-node:", b.Data)
+	switch {
+	case b.Data == "form" || b.Data == "inputbox" || b.Data == "textarea":
+	case flatt && is_unflatten_node(b):
 		nb := create_element(b.Data)
 		try_update_class_attr(nb, cur_class)
-
+		log.Println("flatten unflat node ", b.Data)
 		flatten_block_node(b, nb, false, class)
 		article.AppendChild(nb)
-	} else if hasInlineNodes(b) {
+	case hasInlineNodes(b):
 		p := create_p(b)
 		try_update_class_attr(p, cur_class)
 		article.AppendChild(p)
-	} else {
+	default:
 		foreach_child(b, func(child *html.Node) {
 			flatten_block_node(child, article, true, cur_class)
 		})
@@ -172,15 +180,6 @@ func get_class_weight(n *html.Node, attname string) int {
 	return weight
 }
 
-func max(l int, r int) int {
-	if l > r {
-		return l
-	}
-	return r
-}
-func min(l int, r int) int {
-	if l < r {
-		return l
-	}
-	return r
+func (this *Readabilitier) String() string {
+	return fmt.Sprint("readerabilitier content:", len(this.content), ", candidates:", len(this.candidates))
 }
