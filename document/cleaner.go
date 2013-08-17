@@ -3,11 +3,12 @@ package document
 import (
 	"code.google.com/p/go.net/html"
 	"code.google.com/p/go.net/html/atom"
+	"fmt"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
-	"strconv"
 )
 
 type HtmlCleaner struct {
@@ -22,28 +23,20 @@ type HtmlCleaner struct {
 	ols          []*html.Node
 	forms        []*html.Node
 
-	tables      []*html.Node
-	pages       []string
-	titles      []string
-	keywords    []string
-	author      []string
+	tables   []*html.Node
+	pages    []string
+	titles   []string
+	keywords []string
+	author   []string
 
-  links         int
-  imgs          int
-
-	description string
+	text_length   int
+	anchor_length int
+	links         int
+	imgs          int
+	link_imgs     int
+	lis           int
+	description   string
 }
-
-func NewHtmlCleaner() *HtmlCleaner {
-	return &HtmlCleaner{}
-}
-
-func (cleaner *HtmlCleaner) grab_keywords(meta *html.Node) {
-}
-
-func (cleaner *HtmlCleaner) grab_description(meta *html.Node) {
-}
-
 
 /*
 茅于轼 | 中国是个忘恩负义的国家吗？ - 中国数字时代
@@ -78,24 +71,30 @@ func (cleaner *HtmlCleaner) CleanHtml(root *html.Node) {
 	if cleaner.head != nil {
 		cleaner.head.Parent.RemoveChild(cleaner.head)
 	}
+
 	//文档中如果只有一个h1,通常这个h1所在的div就是文档内容
 	if len(cleaner.header1s) == 1 { // only one h1
-		cleaner.Article = find_article_via_header(cleaner.header1s[0], "h1")
-		clean_element_before_header(cleaner.Article, "h1")
+		log.Println("cleaner article by h1")
+		ab := find_article_via_header_i(cleaner.header1s[0])
+		if ab != nil {
+			cleaner.Article = ab
+		}
 	}
 	//如果文档中只有一个h2，这时又没有h1，h2就是其中的标题，所在的div就是文档内容
 	if len(cleaner.header1s) == 0 && len(cleaner.header2s) == 1 {
-		cleaner.Article = find_article_via_header(cleaner.header2s[0], "h2")
-		clean_element_before_header(cleaner.Article, "h2")
+		ab := find_article_via_header_i(cleaner.header2s[0])
+		if ab != nil {
+			cleaner.Article = ab
+		}
 	}
 
 	if cleaner.Article == nil {
+		log.Println("cleaner article by empty")
 		cleaner.Article = &html.Node{Type: html.ElementNode,
 			DataAtom: atom.Lookup([]byte("body")),
 			Data:     "body"}
 		root.AppendChild(cleaner.Article)
 	}
-
 	cleaner.clean_body()
 	log.Println("begin cleanning empty nodes")
 	cleaner.clean_empty_nodes(cleaner.Article)
@@ -106,6 +105,8 @@ var (
 	unlikely *regexp.Regexp = regexp.MustCompile(`combx|comment|community|disqus|extra|foot|header|menu|remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate|pagination|pager|popup|tweet|twitter`)
 )
 
+//清除所有的脚本，css和Link等等不能显示的内容
+//多文档结构进行统计
 func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n *html.Node) {
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
 		if child.Type == html.CommentNode {
@@ -118,9 +119,10 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 			if unlikely.MatchString(idc) {
 				drop = true
 				*dropping = append(*dropping, child)
+				log.Println("dropping by class-id", idc, ", of ", child.Data)
 			} else {
 				switch child.Data {
-				case "script", "link", "iframe", "nav", "aside", "noscript", "style":
+				case "script", "link", "iframe", "nav", "aside", "noscript", "style", "input", "textarea":
 					*dropping = append(*dropping, child)
 					drop = true
 				case "meta":
@@ -135,15 +137,17 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 				case "br":
 					child.Data = "p"
 				case "article":
-					if cleaner.Article == nil || cleaner.Article.Data == "body" {
+				/* 需要计算article的文本和链接密度是否合理
+				if cleaner.Article == nil || cleaner.Article.Data == "body" {
+					cleaner.Article = child
+				} else {
+					pl := len(get_inner_text(cleaner.Article))
+					cl := len(get_inner_text(child))
+					if cl > pl {
 						cleaner.Article = child
-					} else {
-						pl := len(get_inner_text(cleaner.Article))
-						cl := len(get_inner_text(child))
-						if cl > pl {
-							cleaner.Article = child
-						}
 					}
+				}
+				*/
 				case "h1":
 					cleaner.header1s = append(cleaner.header1s, child)
 				case "h2":
@@ -162,16 +166,21 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 					cleaner.tables = append(cleaner.tables, child)
 				case "option":
 					child.Data = "a"
-        case "img":
-          cleaner.imgs++
-          trim_small_image(child)
+				case "img":
+					cleaner.imgs++
+					if is_ownered_by_a(child) {
+						cleaner.link_imgs++
+					}
+					log.Println(get_attribute(child, "src"))
+					trim_small_image(child)
+				case "a":
+					cleaner.links++
+				case "li":
+					cleaner.lis++
+					trim_display_none(child)
 				default:
-          switch child.Data{
-          case "a":
-            cleaner.links++
-          }
 					/* 有些菜单使用了这个属性，如果直接去除，菜单头会被保留下来*/
-          trim_display_none(child)
+					trim_display_none(child)
 				}
 			}
 			if !drop {
@@ -179,6 +188,11 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 			}
 		} else if child.Type == html.TextNode {
 			child.Data = merge_tail_spaces(child.Data)
+			l := len(strings.TrimSpace(child.Data))
+			cleaner.text_length += l
+			if is_ownered_by_a(child) {
+				cleaner.anchor_length += l
+			}
 		}
 	}
 
@@ -186,34 +200,38 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 }
 
 func trim_small_image(img *html.Node) {
-  width, werr := strconv.ParseInt(get_attribute(img, "width"), 0, 32)
-  height, herr := strconv.ParseInt(get_attribute(img, "height"), 0, 32)
-  if werr != nil || herr != nil || img.Parent == nil {
-    return
-  }
-  if width*height < 180*180 && img.Parent.Data == "a" {
-    for idx, attr := range img.Attr {
-      if attr.Key == "src" {
-        img.Attr[idx].Key = "srcbackup"
-        log.Println(img)
-      }
-    }
-  }
+	width, werr := strconv.ParseInt(get_attribute(img, "width"), 0, 32)
+	height, herr := strconv.ParseInt(get_attribute(img, "height"), 0, 32)
+
+	// sina weibo use the wrong attribute
+	if herr != nil {
+		height, herr = strconv.ParseInt(get_attribute(img, "heigh"), 0, 32)
+	}
+
+	if werr != nil || herr != nil || img.Parent == nil {
+		return
+	}
+	if width*height < 180*180 && img.Parent.Data == "a" {
+		for idx, attr := range img.Attr {
+			if attr.Key == "src" {
+				img.Attr[idx].Key = "srcbackup"
+			}
+		}
+	}
 }
 func remove_children(a *html.Node) {
-  for a.FirstChild != nil {
-    a.RemoveChild(a.FirstChild)
-  }
+	for a.FirstChild != nil {
+		a.RemoveChild(a.FirstChild)
+	}
 }
 func trim_display_none(n *html.Node) {
-  st := get_attribute(n, "style")
-  if strings.Contains(st, "display") && (strings.Contains(st, "none")) {
-    //*dropping = append(*dropping, child)
-    //drop = true
-    log.Println("hide node", n.Data)
-    n.Data = "form"
-  }
+	st := get_attribute(n, "style")
+	if strings.Contains(st, "display") && (strings.Contains(st, "none")) {
+		log.Println("hide node", get_inner_text(n))
+		n.Data = "form"
+	}
 }
+
 // reserve id, class, href, src
 func (this *HtmlCleaner) clean_attributes(n *html.Node) {
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
@@ -232,7 +250,6 @@ func (this *HtmlCleaner) clean_attributes(n *html.Node) {
 
 // clean-body wraps text-node with p
 func (this *HtmlCleaner) clean_body() {
-	log.Println("beginning cleanning body", this.Article.Data)
 	this.clean_block_node(this.Article)
 }
 
@@ -240,11 +257,6 @@ func (this *HtmlCleaner) clean_body() {
 //对已只有inline-level的节点，删除行前后的空白符
 //将包含inline-level的节点展开成更为简单的形式，去掉想<font><span><strong>等等格式节点
 func (this *HtmlCleaner) clean_block_node(n *html.Node) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Println(r)
-		}
-	}()
 	blks := hasBlockNodes(n)
 	inlines := hasInlineNodes(n)
 
@@ -317,7 +329,7 @@ func (this *HtmlCleaner) flatten_inline_node(n *html.Node) []*html.Node {
 		} else if isBlockNode(i) {
 			this.clean_inline_node(i)
 			inlines = append(inlines, i)
-		} else if i.Type == html.ElementNode && is_a_has_valid_href(i) {
+		} else if i.Type == html.ElementNode && i.Data == "a" {
 			this.clean_inline_node(i)
 			inlines = append(inlines, i)
 		} else if i.Type == html.ElementNode {
@@ -329,6 +341,15 @@ func (this *HtmlCleaner) flatten_inline_node(n *html.Node) []*html.Node {
 		}
 	}
 	return inlines
+}
+
+func (this *HtmlCleaner) CleanForm() {
+	if this.forms == nil || len(this.forms) == 0 {
+		return
+	}
+	for _, form := range this.forms {
+		form.Parent.RemoveChild(form)
+	}
 }
 
 //节点中没有可显示内容，也没有form等等后续需要处理的节点就是空节点
@@ -373,4 +394,35 @@ func (this *HtmlCleaner) trim_empty_spaces(n *html.Node) {
 		return strings.TrimRightFunc(o, unicode.IsSpace)
 	})
 
+}
+
+func (this *HtmlCleaner) link_density() int {
+	switch {
+	case this.text_length == 0 && this.links == 0:
+		return 0
+	case this.text_length == 0 && this.links > 0:
+		return 100
+	default:
+		return (this.anchor_length + this.link_imgs*4) * 100 / (this.text_length + this.link_imgs*4)
+	}
+}
+
+func (this *HtmlCleaner) String() string {
+	return fmt.Sprint("cleaner links:", this.links, ", texts:", this.text_length,
+		", article:", this.Article.Data,
+		", linkd:", this.link_density(), ", tables:", len(this.tables),
+		", imgs:", this.imgs, ", linkimgs:", this.link_imgs,
+		", uls:", len(this.uls), ", ols:", len(this.ols), ", lis:", this.lis, ", forms:", len(this.forms),
+		", h1:", len(this.header1s), ", h2:", len(this.header2s), ", h3:", len(this.header3s),
+		", article:", get_inner_text(this.Article))
+}
+
+func NewHtmlCleaner() *HtmlCleaner {
+	return &HtmlCleaner{}
+}
+
+func (cleaner *HtmlCleaner) grab_keywords(meta *html.Node) {
+}
+
+func (cleaner *HtmlCleaner) grab_description(meta *html.Node) {
 }
