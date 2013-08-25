@@ -456,6 +456,20 @@ func create_html_sketch() (doc *html.Node, body *html.Node, article *html.Node) 
 	return
 }
 
+func remove_decentant(n *html.Node, tag string) {
+	child := n.FirstChild
+	for child != nil {
+		if child.Type == html.ElementNode && child.Data == tag {
+			next := child.NextSibling
+			n.RemoveChild(child)
+			child = next
+		} else {
+			remove_decentant(child, tag)
+			child = child.NextSibling
+		}
+	}
+}
+
 /*
 func anchor2_text(n *html.Node) (rtn string) {
 	if n.Type == html.ElementNode && n.Data == "a" {
@@ -490,4 +504,16 @@ func min(l int, r int) int {
 		return l
 	}
 	return r
+}
+
+func get_classid(n *html.Node) string {
+	return get_attribute(n, "class") + ":" + get_attribute(n, "id")
+}
+
+func update_attribute(n *html.Node, key string, val string) {
+	for idx, attr := range n.Attr {
+		if attr.Key == key {
+			n.Attr[idx].Val = val
+		}
+	}
 }
