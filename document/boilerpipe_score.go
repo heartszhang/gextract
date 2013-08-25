@@ -2,6 +2,7 @@ package document
 
 import (
 	"code.google.com/p/go.net/html"
+	"fmt"
 )
 
 type boilerpipe_score struct {
@@ -20,8 +21,7 @@ type boilerpipe_score struct {
 	is_content bool
 }
 
-//包含n的子孙的评分
-func new_boilerpipe_score(n *html.Node) boilerpipe_score {
+func new_boilerpipe_score_omit_table(n *html.Node, omit bool, omit_form bool) boilerpipe_score {
 	p := boilerpipe_score{element: n}
 	switch {
 	case n.Type == html.TextNode:
@@ -30,28 +30,35 @@ func new_boilerpipe_score(n *html.Node) boilerpipe_score {
 		p.tokens += t
 		p.words += w
 		p.commas += c
-	case n.Type == html.ElementNode && n.Data == "a":
+	case n.Data == "a":
 		foreach_child(n, func(child *html.Node) {
-			np := new_boilerpipe_score(child)
+			np := new_boilerpipe_score_omit_table(child, omit, omit_form)
 			p.add(np)
 			p.anchor_words += np.words
 			p.anchor_imgs += np.imgs
 		})
 		p.anchors++
-	case n.Type == html.ElementNode && n.Data == "img":
+	case n.Data == "img":
 		p.imgs++
-	case n.Type == html.ElementNode &&
-		(n.Data == "form" || n.Data == "input" || n.Data == "textarea"):
+	case omit_form && n.Data == "form":
+		p.forms++
+	case n.Data == "input" || n.Data == "textarea":
 		p.forms++
 	case is_object(n):
 		p.objects++
+	case omit && n.Data == "table":
 	default:
 		foreach_child(n, func(child *html.Node) {
-			np := new_boilerpipe_score(child)
+			np := new_boilerpipe_score_omit_table(child,omit, omit_form)
 			p.add(np)
 		})
 	}
 	return p
+}
+
+//包含n的子孙的评分
+func new_boilerpipe_score(n *html.Node) boilerpipe_score {
+	return new_boilerpipe_score_omit_table(n, false, true)
 }
 
 func (this *boilerpipe_score) add(rhs boilerpipe_score) {
@@ -85,4 +92,14 @@ func (this boilerpipe_score) lines() int {
 }
 func (this boilerpipe_score) wrapped_words() int {
 	return this.words - (this.words % wordwrap)
+}
+
+func (this boilerpipe_score) table_score() int {
+	return this.words*(100-this.link_density())/100 + (this.imgs-this.anchor_imgs)*8
+}
+
+func (this boilerpipe_score) String() string {
+	return fmt.Sprint("boilerpipe-score node-tag:", this.element.Data,
+		", words:", this.words, ", anchor_words:", this.anchor_words,
+		", imgs:", this.imgs, ", aimgs", this.anchor_imgs)
 }
