@@ -5,6 +5,7 @@ import (
 	"code.google.com/p/go.net/html/atom"
 	"fmt"
 	"log"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 type HtmlCleaner struct {
 	may_be_html5 bool
+	current_url  *url.URL
 	Article      *html.Node // body or article
 	head         *html.Node
 	header1s     []*html.Node
@@ -24,18 +26,20 @@ type HtmlCleaner struct {
 	forms        []*html.Node
 
 	tables   []*html.Node
+	tds      []boilerpipe_score
 	pages    []string
 	titles   []string
 	keywords []string
 	author   []string
 
-	text_length   int
-	anchor_length int
-	links         int
-	imgs          int
-	link_imgs     int
-	lis           int
-	description   string
+	text_words   int
+	anchor_words int
+	table_words  int
+	links        int
+	imgs         int
+	link_imgs    int
+	lis          int
+	description  string
 }
 
 /*
@@ -76,16 +80,12 @@ func (cleaner *HtmlCleaner) CleanHtml(root *html.Node) {
 	if len(cleaner.header1s) == 1 { // only one h1
 		log.Println("cleaner article by h1")
 		ab := find_article_via_header_i(cleaner.header1s[0])
-		if ab != nil {
-			cleaner.Article = ab
-		}
+		cleaner.try_update_article(ab)
 	}
 	//如果文档中只有一个h2，这时又没有h1，h2就是其中的标题，所在的div就是文档内容
 	if len(cleaner.header1s) == 0 && len(cleaner.header2s) == 1 {
 		ab := find_article_via_header_i(cleaner.header2s[0])
-		if ab != nil {
-			cleaner.Article = ab
-		}
+		cleaner.try_update_article(ab)
 	}
 
 	if cleaner.Article == nil {
@@ -95,10 +95,32 @@ func (cleaner *HtmlCleaner) CleanHtml(root *html.Node) {
 			Data:     "body"}
 		root.AppendChild(cleaner.Article)
 	}
+	cleaner.try_catch_phpwnd()
+	cleaner.fix_forms()
+
 	cleaner.clean_body()
 	log.Println("begin cleanning empty nodes")
 	cleaner.clean_empty_nodes(cleaner.Article)
 	cleaner.clean_attributes(cleaner.Article)
+}
+
+func (this *HtmlCleaner) try_catch_phpwnd() {
+	// have not table, or some  content not in table
+	if len(this.tds) == 0 || this.table_words*100/(this.text_words+1) < 33 {
+		return
+	}
+	top := boilerpipe_score{}
+	for _, td_score := range this.tds {
+		if top.element == nil || top.table_score() < td_score.table_score() {
+			top = td_score
+		}
+	}
+	if top.element == nil {
+		return
+	}
+	//remove_decentant(top.element, "table")
+	this.Article = top.element
+	log.Println("use td as body", top)
 }
 
 var (
@@ -164,6 +186,14 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 					cleaner.ols = append(cleaner.ols, child)
 				case "table":
 					cleaner.tables = append(cleaner.tables, child)
+				case "td":
+					ts := new_boilerpipe_score_omit_table(child, true, true)
+					cleaner.tds = append(cleaner.tds, ts)
+					cleaner.table_words += ts.words
+				case "th":
+					ts := new_boilerpipe_score_omit_table(child, true, true)
+					cleaner.tds = append(cleaner.tds, ts)
+					cleaner.table_words += ts.words
 				case "option":
 					child.Data = "a"
 				case "img":
@@ -175,6 +205,7 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 					trim_small_image(child)
 				case "a":
 					cleaner.links++
+					cleaner.fix_a_href(child)
 				case "li":
 					cleaner.lis++
 					trim_display_none(child)
@@ -188,10 +219,10 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 			}
 		} else if child.Type == html.TextNode {
 			child.Data = merge_tail_spaces(child.Data)
-			l := len(strings.TrimSpace(child.Data))
-			cleaner.text_length += l
+			l := new_boilerpipe_score(child).words
+			cleaner.text_words += l
 			if is_ownered_by_a(child) {
-				cleaner.anchor_length += l
+				cleaner.anchor_words += l
 			}
 		}
 	}
@@ -199,6 +230,17 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 	return
 }
 
+func (this *HtmlCleaner) try_update_article(candi *html.Node) {
+	if candi == nil {
+		return
+	}
+	sc := new_boilerpipe_score(candi)
+	per := sc.words * 100 / (this.text_words + 1)
+	if sc.words < 65 || per < 20 {
+		return
+	}
+	this.Article = candi
+}
 func trim_small_image(img *html.Node) {
 	width, werr := strconv.ParseInt(get_attribute(img, "width"), 0, 32)
 	height, herr := strconv.ParseInt(get_attribute(img, "height"), 0, 32)
@@ -227,8 +269,8 @@ func remove_children(a *html.Node) {
 func trim_display_none(n *html.Node) {
 	st := get_attribute(n, "style")
 	if strings.Contains(st, "display") && (strings.Contains(st, "none")) {
-		log.Println("hide node", get_inner_text(n))
-		n.Data = "form"
+		log.Println("hide-node display:none", n.Data)
+		n.Data = "input"
 	}
 }
 
@@ -398,31 +440,56 @@ func (this *HtmlCleaner) trim_empty_spaces(n *html.Node) {
 
 func (this *HtmlCleaner) link_density() int {
 	switch {
-	case this.text_length == 0 && this.links == 0:
+	case this.text_words == 0 && this.links == 0:
 		return 0
-	case this.text_length == 0 && this.links > 0:
+	case this.text_words == 0 && this.links > 0:
 		return 100
 	default:
-		return (this.anchor_length + this.link_imgs*4) * 100 / (this.text_length + this.link_imgs*4)
+		return (this.anchor_words + this.link_imgs*4) * 100 / (this.text_words + this.link_imgs*4)
 	}
 }
 
 func (this *HtmlCleaner) String() string {
-	return fmt.Sprint("cleaner links:", this.links, ", texts:", this.text_length,
+	return fmt.Sprint("cleaner links:", this.links, ", texts:", this.text_words,
 		", article:", this.Article.Data,
 		", linkd:", this.link_density(), ", tables:", len(this.tables),
 		", imgs:", this.imgs, ", linkimgs:", this.link_imgs,
 		", uls:", len(this.uls), ", ols:", len(this.ols), ", lis:", this.lis, ", forms:", len(this.forms),
-		", h1:", len(this.header1s), ", h2:", len(this.header2s), ", h3:", len(this.header3s),
-		", article:", get_inner_text(this.Article))
+		", h1:", len(this.header1s), ", h2:", len(this.header2s), ", h3:", len(this.header3s))
 }
 
-func NewHtmlCleaner() *HtmlCleaner {
-	return &HtmlCleaner{}
+func NewHtmlCleaner(u string) *HtmlCleaner {
+	rtn := &HtmlCleaner{}
+	rtn.current_url, _ = url.Parse(u)
+	return rtn
 }
 
 func (cleaner *HtmlCleaner) grab_keywords(meta *html.Node) {
 }
 
 func (cleaner *HtmlCleaner) grab_description(meta *html.Node) {
+}
+
+func (this *HtmlCleaner) fix_forms() {
+	if len(this.forms) == 0 {
+		return
+	}
+	for _, form := range this.forms {
+		score := new_boilerpipe_score_omit_table(form, false, false)
+		pcnt := score.words * 100 / (1 + this.text_words)
+		if pcnt > 33 {
+			form.Data = "div"
+		}
+		log.Println("fix form", pcnt, form)
+	}
+}
+
+func (this *HtmlCleaner) fix_a_href(a *html.Node) {
+	href := get_attribute(a, "href")
+	uri, err := url.Parse(href)
+	if err != nil {
+		return
+	}
+	abs := this.current_url.ResolveReference(uri)
+	update_attribute(a, "href", abs.String())
 }
