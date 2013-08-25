@@ -15,6 +15,73 @@ import (
 	"strings"
 )
 
+// return utf-8 encoded cache file path
+func FetchUrl2(url string) string {
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	try_panic(err)
+
+	req.Header.Add("Accept-Encoding", "gzip, deflate")
+
+	resp, err := client.Do(req)
+	try_panic(err)
+
+	defer resp.Body.Close()
+
+	var reader io.Reader = nil
+	ct := extract_charset(resp.Header.Get("content-type"))
+	log.Println("content-type:", ct)
+
+	ce := strings.ToLower(resp.Header.Get("content-encoding"))
+	if strings.Contains(ce, "gzip") || strings.Contains(ce, "deflate") {
+		reader, err = gzip.NewReader(resp.Body)
+		try_panic(err)
+	} else {
+		reader = resp.Body
+	}
+
+	of, err := ioutil.TempFile("", "")
+	try_panic(err)
+	defer of.Close()
+
+	io.Copy(of, reader)
+	//  of.Sync()
+	of.Seek(0, 0)
+
+	if len(ct) == 0 {
+		ct = detect_charset(of)
+	}
+	log.Println("detected content-type", ct)
+
+	of.Seek(0, 0)
+	//某些技术网站使用繁体，但标识gb2312
+	if len(ct) == 0 || ct == "gb23123" {
+		ct = "gbk"
+	}
+
+	tf, err := ioutil.TempFile("", "")
+	try_panic(err)
+	defer tf.Close()
+
+	if ct != "utf-8" {
+		in, _ := ioutil.ReadAll(of)
+		out := make([]byte, len(in)*2)
+
+		_, w, _ := iconv.Convert(in, out, ct, "utf-8")
+		out = out[:w]
+
+		io.Copy(tf, bytes.NewReader(out))
+		//ioutil.WriteFile(localpath, out, 0644)
+	} else {
+		//		tf, err := os.Create(localpath)
+		//		try_panic(err)
+		//		defer tf.Close()
+		io.Copy(tf, of)
+	}
+	return tf.Name()
+}
+
+/*
 func FetchUrl(url string, localpath string) error {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
@@ -77,6 +144,8 @@ func FetchUrl(url string, localpath string) error {
 	}
 	return err
 }
+*/
+
 func extract_charset(ct string) string {
 	ct = strings.ToLower(ct)
 	re := regexp.MustCompile(`(?i)(?:charset *= *)([^; ]+)`)
@@ -137,8 +206,18 @@ func NewHtmlDocument(localpath string) *html.Node {
 	return doc
 }
 
+/*
 func WriteHtmlFile(doc *html.Node, localpath string) {
 	data := new(bytes.Buffer)
 	try_panic(html.Render(data, doc))
 	try_panic(ioutil.WriteFile(localpath, data.Bytes(), 0644))
+}
+*/
+func WriteHtmlFile2(doc *html.Node) string {
+	of, err := ioutil.TempFile("", "")
+	try_panic(err)
+	defer of.Close()
+
+	html.Render(of, doc)
+	return of.Name()
 }
