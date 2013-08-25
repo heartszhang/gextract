@@ -27,7 +27,7 @@ func NewReadabilitier(body *html.Node) *Readabilitier {
 		candidates: make(map[*html.Node]*readability_score),
 		body:       body}
 
-	log.Println("readability flatten paragraphs", get_inner_text(body))
+	log.Println("readability flatten paragraphs", body.Data, ", cid", get_classid(body))
 	r.extract_paragraphs(body)
 
 	var top_candi *readability_score = nil
@@ -95,13 +95,15 @@ func (this *Readabilitier) make_readability_score(n *html.Node) *readability_sco
 	)
 	parent := n.Parent
 	var grand *html.Node = nil
-	if parent != nil {
-		if i, ok := this.candidates[parent]; ok {
-			pext = i
-		} else {
-			pext = new_readability_score(parent)
-			this.candidates[parent] = pext
-		}
+
+	//parent isnt nil
+	if i, ok := this.candidates[parent]; ok {
+		pext = i
+	} else {
+		pext = new_readability_score(parent)
+		this.candidates[parent] = pext
+	}
+	if parent != this.body {
 		grand = parent.Parent
 	}
 	if grand != nil {
@@ -147,13 +149,11 @@ func (this *Readabilitier) extract_paragraphs(n *html.Node) {
 // <ul> <ol> <form> <textarea> <input> will be reserved
 func flatten_block_node(b *html.Node, article *html.Node, flatt bool, class string) {
 	cur_class := cat_class(b, class)
-	log.Println("flatten block-node:", b.Data)
 	switch {
 	case b.Data == "form" || b.Data == "inputbox" || b.Data == "textarea":
 	case flatt && is_unflatten_node(b):
 		nb := create_element(b.Data)
 		try_update_class_attr(nb, cur_class)
-		log.Println("flatten unflat node ", b.Data)
 		flatten_block_node(b, nb, false, class)
 		article.AppendChild(nb)
 	case hasInlineNodes(b):
