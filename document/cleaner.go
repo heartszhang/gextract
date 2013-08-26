@@ -16,7 +16,7 @@ import (
 type HtmlCleaner struct {
 	may_be_html5 bool
 	current_url  *url.URL
-	Article      *html.Node // body or article
+	Article      *html.Node // body or article or a table's body
 	head         *html.Node
 	header1s     []*html.Node
 	header2s     []*html.Node
@@ -79,7 +79,6 @@ func (cleaner *HtmlCleaner) CleanHtml(root *html.Node) {
 
 	//文档中如果只有一个h1,通常这个h1所在的div就是文档内容
 	if len(cleaner.header1s) == 1 { // only one h1
-		log.Println("cleaner article by h1")
 		ab := find_article_via_header_i(cleaner.header1s[0])
 		cleaner.try_update_article(ab)
 	}
@@ -227,11 +226,14 @@ func (this *HtmlCleaner) try_update_article(candi *html.Node) {
 	}
 	sc := new_boilerpipe_score(candi)
 	per := sc.words * 100 / (this.text_words + 1)
-	if sc.words < 65 || per < 20 {
+	if sc.words < wordwrap || per < w_current_line_l {
 		return
 	}
 	this.Article = candi
 }
+const(
+	small_image_t = 180  // pixels
+)
 func trim_small_image(img *html.Node) {
 	width, werr := strconv.ParseInt(get_attribute(img, "width"), 0, 32)
 	height, herr := strconv.ParseInt(get_attribute(img, "height"), 0, 32)
@@ -244,7 +246,7 @@ func trim_small_image(img *html.Node) {
 	if werr != nil || herr != nil || img.Parent == nil {
 		return
 	}
-	if width*height < 180*180 && img.Parent.Data == "a" {
+	if width*height < small_image_t*small_image_t && img.Parent.Data == "a" {
 		for idx, attr := range img.Attr {
 			if attr.Key == "src" {
 				img.Attr[idx].Key = "srcbackup"
@@ -429,6 +431,9 @@ func (this *HtmlCleaner) trim_empty_spaces(n *html.Node) {
 
 }
 
+const (
+	link_img_as_words_c = 4
+)
 func (this *HtmlCleaner) link_density() int {
 	switch {
 	case this.text_words == 0 && this.links == 0:
@@ -436,17 +441,25 @@ func (this *HtmlCleaner) link_density() int {
 	case this.text_words == 0 && this.links > 0:
 		return 100
 	default:
-		return (this.anchor_words + this.link_imgs*4) * 100 / (this.text_words + this.link_imgs*4)
+		return (this.anchor_words + this.link_imgs*link_img_as_words_c) * 100 / (this.text_words + this.link_imgs*link_img_as_words_c)
 	}
 }
 
 func (this *HtmlCleaner) String() string {
-	return fmt.Sprint("cleaner links:", this.links, ", texts:", this.text_words,
+	return fmt.Sprint("cleaner links:", this.links, 
+		", texts:", this.text_words,
 		", article:", this.Article.Data,
-		", linkd:", this.link_density(), ", tables:", len(this.tables),
-		", imgs:", this.imgs, ", linkimgs:", this.link_imgs,
-		", uls:", len(this.uls), ", ols:", len(this.ols), ", lis:", this.lis, ", forms:", len(this.forms),
-		", h1:", len(this.header1s), ", h2:", len(this.header2s), ", h3:", len(this.header3s))
+		", linkd:", this.link_density(), 
+		", tables:", len(this.tables),
+		", imgs:", this.imgs, 
+		", linkimgs:", this.link_imgs,
+		", uls:", len(this.uls), 
+		", ols:", len(this.ols), 
+		", lis:", this.lis, 
+		", forms:", len(this.forms),
+		", h1:", len(this.header1s), 
+		", h2:", len(this.header2s), 
+		", h3:", len(this.header3s))
 }
 
 func NewHtmlCleaner(u string) *HtmlCleaner {

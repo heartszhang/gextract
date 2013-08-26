@@ -2,8 +2,6 @@ package document
 
 import (
 	"code.google.com/p/go.net/html"
-	"log"
-	"strings"
 )
 
 type Boilerpiper struct {
@@ -97,30 +95,42 @@ func new_boilerpiper() *Boilerpiper {
 	return &rtn
 }
 
+const (
+	ld_link_group_t       = 33
+	ld_link_group_title_t = 55
+	w_current_line_l      = 20
+	w_next_line_l         = 15
+	w_prev_line_l         = 8
+)
+
 //链接密度高于0.33的段落，直接认为不是正文
 //当前段不多于一定字符，后续段落的链接密度很高，认为这一段落是后续段落的标题，可以进行清除
 //form组成的段落，直接抛弃
+// many magic numbers in this function
 func (this *Boilerpiper) classify(prev *boilerpipe_score,
 	current *boilerpipe_score,
 	next *boilerpipe_score) {
-	if current.link_density() > 33 {
+	if current.link_density() > ld_link_group_t {
 		current.is_content = false
 	} else {
-		c := (prev.link_density() <= 55 &&
-			(current.words > 20 || next.words > 15 || prev.words > 8)) ||
-			(prev.link_density() > 55 && (current.words > 40 || next.words > 17))
+		c := (prev.link_density() <= ld_link_group_title_t &&
+			(current.words > w_current_line_l || next.words > w_next_line_l || prev.words > w_prev_line_l)) ||
+			(prev.link_density() > ld_link_group_title_t && (current.words > 40 || next.words > 17))
 		current.is_content = current.is_content || c
 	}
-	if current.words < 8 && next.link_density() > 55 {
+	if current.words < w_prev_line_l && next.link_density() > ld_link_group_title_t {
 		current.is_content = false
 	}
 	if current.forms > 0 && current.words == 0 {
 		current.is_content = false
 	}
-	if current.link_density() > 25 {
-		log.Printf("is_content: %v, words:%v,line:%v, isfomr:%v, lnk_dsnty: %v, anchor: %v, %v\n",
-			current.is_content,
-			current.words,
-			current.lines(), current.forms, current.link_density(), current.anchors, strings.TrimSpace(current.inner_text))
-	}
+	/*
+		// debug log
+		if current.link_density() > 25 {
+			log.Printf("is_content: %v, words:%v,line:%v, isfomr:%v, lnk_dsnty: %v, anchor: %v, %v\n",
+				current.is_content,
+				current.words,
+				current.lines(), current.forms, current.link_density(), current.anchors, strings.TrimSpace(current.inner_text))
+		}
+	*/
 }

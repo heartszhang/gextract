@@ -30,8 +30,6 @@ func TerminateMongo() {
 	}
 }
 func DoInSession(collection string, act func(*mgo.Collection)) {
-	//	sess, err := mgo.Dial(server)
-	//	try_panic(err)
 	sess := clone_session()
 	defer sess.Close()
 

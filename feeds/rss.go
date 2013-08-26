@@ -64,7 +64,7 @@ type Entry struct {
 	ContentPath   string `xml:"" bson:"content_path" json:"content_path"`
 }
 
-func (this *Entry) PreProcess(cid string, category []string) {
+func (this *Entry) preprocess(cid string, category []string) {
 	//	this.Id = bson.NewObjectId()
 	this.Date = parse_time1(this.PubDate)
 	this.Created = time.Now()
@@ -100,10 +100,17 @@ func (this *Entry) clean_summary() {
 	this.Content, _ = document.CleanFragment(this.Content, this.Link)
 }
 
-func (this *Channel) PreProcess(url string) {
+const(
+	minutes_hour = 60
+	minutes_day = minutes_hour * 24
+	minutes_week = minutes_day * 7
+	minutes_month = minutes_day * 30
+	minutes_year = minutes_day * 365
+)
+func (this *Channel) preprocess(url string) {
 	//	this.Id = bson.NewObjectId()
 	this.Date = parse_time1(this.PubDate, this.LastBuildDate)
-	this.Href = this.LinkOne()
+	this.Href = this.linkone()
 	if len(this.Href) == 0 {
 		this.Href = url
 	}
@@ -111,19 +118,19 @@ func (this *Channel) PreProcess(url string) {
 	//  hourly, daily, weekly, monthly, yearly
 	switch this.UpdatePeriod {
 	case "hourly":
-		this.Ttl = 60
+		this.Ttl = minutes_hour
 	case "daily":
-		this.Ttl = 24 * 60
+		this.Ttl = minutes_day
 	case "weekly":
-		this.Ttl = 7 * 24 * 60
+		this.Ttl = minutes_week
 	case "monthly":
-		this.Ttl = 30 * 24 * 60
+		this.Ttl = minutes_month
 	case "yearly":
-		this.Ttl = 365 * 24 * 60
+		this.Ttl = minutes_year
 	}
 
 	if this.Ttl == 0 {
-		this.Ttl = 24 * 60 // minutes
+		this.Ttl = minutes_hour // minutes
 	}
 	this.Refresh = this.Date.Add(time.Duration(this.Ttl) * time.Minute)
 }
@@ -156,7 +163,7 @@ type link struct {
 	Href2 string `xml:",chardata" json:"-"` // just for rss xmltextnode
 }
 
-func (this *Channel) LinkOne() string {
+func (this *Channel) linkone() string {
 	for _, l := range this.Link {
 		if len(l.Href) > 0 {
 			return l.Href
@@ -173,9 +180,9 @@ func NewRss2(filepath string, url string) (Channel, []Entry) {
 	var v rss
 	err = xml.NewDecoder(f).Decode(&v)
 	try_panic(err)
-	v.Channel.PreProcess(url)
+	v.Channel.preprocess(url)
 	for i, _ := range v.Channel.Items {
-		v.Channel.Items[i].PreProcess(v.Channel.Href, v.Channel.Category)
+		v.Channel.Items[i].preprocess(v.Channel.Href, v.Channel.Category)
 	}
 	return v.Channel.Channel, v.Channel.Items
 }

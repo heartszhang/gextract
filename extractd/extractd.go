@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	//	"net/url"
 	"sync"
 	"time"
 )
@@ -179,7 +178,7 @@ func subscribe_rss2(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	url := r.FormValue("url")
 	fmt.Println("fetching ", url)
-	rss_file := htmldoc.FetchUrl2(url)
+	rss_file, _ := htmldoc.FetchUrl2(url)
 	fmt.Println("rss-file", rss_file)
 	channel, _ := feeds.NewRss2(rss_file, url)
 	feeds.InsertChannel(channel)

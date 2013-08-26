@@ -8,18 +8,23 @@ import (
 	"os"
 )
 
+const (
+	max_cocurrents = 8
+	chan_buf_size  = 100
+)
+
 func main() {
 	defer recover_panic()
 	flag.Parse()
 	entries := feeds.EntriesContentUnready()
 	log.Println(len(entries))
 
-	cocurrents := 12
+	cocurrents := max_cocurrents
 	echans := make([]chan *feeds.Entry, cocurrents)
 	done := make(chan int)
 
 	for i := 0; i < cocurrents; i++ {
-		echan := make(chan *feeds.Entry, 100)
+		echan := make(chan *feeds.Entry, chan_buf_size)
 		echans[i] = echan
 		go touch_entry(echan, done)
 	}

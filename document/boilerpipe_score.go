@@ -85,7 +85,9 @@ func (this *boilerpipe_score) link_density() int {
 	}
 }
 
-const wordwrap = 65
+const (
+	wordwrap = 65
+)
 
 func (this boilerpipe_score) lines() int {
 	return (this.words + wordwrap - 1) / wordwrap

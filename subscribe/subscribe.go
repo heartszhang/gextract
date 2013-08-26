@@ -21,7 +21,7 @@ func main() {
 	if len(*uri) == 0 {
 		panic(errors.New("usage: subscribe --uri http://xome.rss2.xml"))
 	}
-	rsfile := document.FetchUrl2(*uri)
+	rsfile, _ := document.FetchUrl2(*uri)
 	log.Println(rsfile)
 	ch, _ := feeds.NewRss2(rsfile, *uri)
 	log.Println(ch)

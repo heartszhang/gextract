@@ -20,14 +20,17 @@ import (
 	"strings"
 )
 
-const proxy_address = "http://localhost:8087"
+const (
+	proxy_address = "http://localhost:8087"
+	conn_timeout = 8  // seconds
+)
 
 func new_proxy_transport(pxyaddr string) *http.Transport {
 	pxy, _ := url.Parse(pxyaddr)
 	return &http.Transport{Proxy: http.ProxyURL(pxy), Dial: timeout_dialer}
 }
 
-var timeout = time.Duration(8 * time.Second)
+var timeout = time.Duration(conn_timeout * time.Second)
 
 func timeout_dialer(network, addr string) (net.Conn, error) {
 	return net.DialTimeout(network, addr, timeout)
@@ -85,7 +88,6 @@ func fetch_url(url string) (string, string) {
 	defer of.Close()
 
 	io.Copy(of, reader)
-	//  of.Sync()
 	of.Seek(0, 0)
 
 	if len(charset) == 0 {
