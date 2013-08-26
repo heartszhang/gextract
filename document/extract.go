@@ -13,7 +13,7 @@ func ExtractHtml(url string) string {
 			log.Println(err)
 		}
 	}()
-	htmlfile := FetchUrl2(url)
+	htmlfile, _ := FetchUrl2(url)
 	log.Println("writing step 1", htmlfile)
 
 	f, err := os.Open(htmlfile)
