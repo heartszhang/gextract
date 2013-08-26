@@ -131,28 +131,6 @@ func has_children(this *html.Node) bool {
 	return this.FirstChild != nil
 }
 
-/*
-func print_line(n *html.Node) string {
-	line := ""
-	if n.Type == html.TextNode {
-		return n.Data
-	}
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		line += print_line(c)
-	}
-	return line
-}
-*/
-
-/*
-func is_a_has_valid_href(a *html.Node) bool {
-	isa := a.Type == html.ElementNode && a.Data == "a"
-	//	href := get_attribute(a, "href")
-	//	return isa && len(href) > 0 && !strings.Contains(href, "javascript:")
-	return isa
-}
-*/
-
 func get_attribute(n *html.Node, name string) string {
 	for _, a := range n.Attr {
 		if a.Key == name {
@@ -190,21 +168,6 @@ func GetInnerText(n *html.Node) string {
 	return get_inner_text(n)
 }
 
-/*
-func has_decendant_type(n *html.Node, name string) bool {
-	if n.Type == html.ElementNode && n.Data == name {
-		return true
-	}
-
-	for child := n.FirstChild; child != nil; child = child.NextSibling {
-		if has_decendant_type(child, name) {
-			return true
-		}
-	}
-	return false
-}
-*/
-
 func for_each_child(n *html.Node, f func(*html.Node)) {
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
 		f(child)
@@ -228,21 +191,6 @@ func count_words(txt string) (tokens int, words int, commas int) {
 	}
 	return
 }
-
-/*
-func has_decendant_object(n *html.Node) bool {
-	if n.Type == html.ElementNode && is_object(n) {
-		return true
-	}
-
-	for child := n.FirstChild; child != nil; child = child.NextSibling {
-		if has_decendant_object(child) {
-			return true
-		}
-	}
-	return false
-}
-*/
 
 func create_element(name string) (node *html.Node) {
 	return &html.Node{Type: html.ElementNode, Data: name}
@@ -346,34 +294,6 @@ func foreach_child(n *html.Node, dof func(*html.Node)) {
 	}
 }
 
-/*
-func flatten_inline_node2(n *html.Node, parent *html.Node) {
-	inlines := []*html.Node{}
-	for i := n.FirstChild; i != nil; i = i.NextSibling {
-		if i.Type == html.TextNode {
-			parent.AppendChild(create_text(i.Data))
-		} else if i.Data == "img" || i.Data == "object" || i.Data == "video" || i.Data == "audio" {
-			parent.AppendChild(clone_inline(i))
-
-			// may be div
-		} else if isBlockNode(i) {
-			this.clean_inline_node(i)
-			inlines = append(inlines, i)
-		} else if i.Type == html.ElementNode && is_a_has_valid_href(i) {
-			this.clean_inline_node(i)
-			inlines = append(inlines, i)
-		} else if i.Type == html.ElementNode {
-			x := this.flatten_inline_node(i)
-			t := make([]*html.Node, len(inlines)+len(x))
-			copy(t, inlines)
-			copy(t[len(inlines):], x)
-			inlines = t
-		}
-	}
-	return inlines
-}
-*/
-
 func append_children(src *html.Node, target *html.Node) {
 	foreach_child(src, func(child *html.Node) {
 		switch {
@@ -405,32 +325,6 @@ func try_update_class_attr(b *html.Node, class string) {
 	}
 }
 
-/*
-func get_link_density(n *html.Node) int{
-  ld,_ := get_link_density_words(n)
-  return ld
-}
-
-func get_link_density_words(n *html.Node) int,int {
-  ll := 0
-  wl := 0
-
-  for _, t := range tokenize(get_inner_text(n)) {
-    if is_word(t) {
-      wl++
-    }
-  }
-  if wl == 0 {
-    return 0,0
-  }
-  for _, t : range tokenize(anchor_text(n)) {
-    if is_word(t) {
-      ll++
-    }
-  }
-  return ll * 100 / wl,0
-}
-*/
 func cat_class(b *html.Node, class string) (rtn string) {
 	c := get_attribute(b, "class")
 	id := get_attribute(b, "id")
@@ -469,20 +363,6 @@ func remove_decentant(n *html.Node, tag string) {
 		}
 	}
 }
-
-/*
-func anchor2_text(n *html.Node) (rtn string) {
-	if n.Type == html.ElementNode && n.Data == "a" {
-		rtn = get_inner_text(n)
-		//		log.Println("anchor: ", rtn)
-		return
-	}
-	for child := n.FirstChild; child != nil; child = child.NextSibling {
-		rtn += " " + anchor2_text(child)
-	}
-	return
-}
-*/
 
 func is_ownered_by_a(a *html.Node) bool {
 	for p := a.Parent; p != nil; p = p.Parent {

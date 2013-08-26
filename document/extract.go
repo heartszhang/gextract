@@ -33,13 +33,11 @@ func ExtractHtml(url string) string {
 	rdr := NewReadabilitier(cleaner.Article)
 	doc1, article := rdr.CreateArticle()
 
-	//	write_html(doc1, "3.html")
 	log.Println("writing step 3", WriteHtmlFile2(doc1))
 
 	boiler := NewBoilerpiper(article)
 	boiler.NumberWordsRulesFilter()
 
-	//	write_html(doc1, "4.html")
 	h4ml := WriteHtmlFile2(doc1)
 	log.Println("writing step 4", h4ml)
 

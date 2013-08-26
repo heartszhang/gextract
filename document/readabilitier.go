@@ -4,8 +4,6 @@ import (
 	"code.google.com/p/go.net/html"
 	"fmt"
 	"log"
-
-//	"regexp"
 )
 
 type Readabilitier struct {
@@ -27,7 +25,6 @@ func NewReadabilitier(body *html.Node) *Readabilitier {
 		candidates: make(map[*html.Node]*readability_score),
 		body:       body}
 
-	log.Println("readability flatten paragraphs", body.Data, ", cid", get_classid(body))
 	r.extract_paragraphs(body)
 
 	var top_candi *readability_score = nil
@@ -36,11 +33,9 @@ func NewReadabilitier(body *html.Node) *Readabilitier {
 		if top_candi == nil || candi.content_score > top_candi.content_score {
 			top_candi = candi
 		}
-		log.Println("candi-element:", candi)
 	}
 	if top_candi != nil {
 		r.article = top_candi
-		log.Println("top-article", r.article)
 	}
 
 	return r

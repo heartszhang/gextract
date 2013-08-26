@@ -21,8 +21,6 @@ func main() {
 	ch, entries := feeds.NewRss2(rsfile, *uri)
 	log.Println(len(entries))
 	feeds.SaveEntries(ch, entries)
-	//	feeds.InsertEntries(entries)
-	//	feeds.InsertChannel(ch)
 }
 
 func init() {

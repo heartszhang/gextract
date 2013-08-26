@@ -17,7 +17,6 @@ import (
 	"net/url"
 	"os"
 	"time"
-	//	"regexp"
 	"strings"
 )
 
@@ -55,13 +54,6 @@ func do_request(url string) (*http.Response, error) {
 }
 
 func fetch_url(url string) (string, string) {
-	/*	req, err := http.NewRequest("GET", url, nil)
-		try_panic(err)
-
-		req.Header.Add("Accept-Encoding", "gzip, deflate")
-
-		resp, err := client.Do(req)j
-	*/
 	resp, err := do_request(url)
 	try_panic(err)
 
@@ -88,14 +80,6 @@ func fetch_url(url string) (string, string) {
 		reader = rd
 	}
 
-	/*
-		if strings.Contains(ce, "gzip") || strings.Contains(ce, "deflate") {
-			reader, err = gzip.NewReader(resp.Body)
-			try_panic(err)
-		} else {
-			reader = resp.Body
-		}
-	*/
 	of, err := ioutil.TempFile("", "")
 	try_panic(err)
 	defer of.Close()
@@ -127,11 +111,7 @@ func fetch_url(url string) (string, string) {
 		out = out[:w]
 
 		io.Copy(tf, bytes.NewReader(out))
-		//ioutil.WriteFile(localpath, out, 0644)
 	} else {
-		//		tf, err := os.Create(localpath)
-		//		try_panic(err)
-		//		defer tf.Close()
 		io.Copy(tf, of)
 	}
 	return tf.Name(), content_type
@@ -151,84 +131,9 @@ func FetchUrl2(url string) (string, string) {
 	return fetch_url(url)
 }
 
-/*
-func FetchUrl(url string, localpath string) error {
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
-	try_panic(err)
-
-	req.Header.Add("Accept-Encoding", "gzip, deflate")
-
-	resp, err := client.Do(req)
-	try_panic(err)
-
-	defer resp.Body.Close()
-
-	var reader io.Reader = nil
-	ct := extract_charset(resp.Header.Get("content-type"))
-	log.Println("content-type:", ct)
-
-	ce := strings.ToLower(resp.Header.Get("content-encoding"))
-	if strings.Contains(ce, "gzip") || strings.Contains(ce, "deflate") {
-		reader, err = gzip.NewReader(resp.Body)
-		try_panic(err)
-	} else {
-		reader = resp.Body
-	}
-
-	of, err := os.Create(localpath + ".txt")
-	try_panic(err)
-	defer of.Close()
-
-	log.Println("transfer-encoding", resp.TransferEncoding)
-	io.Copy(of, reader)
-	of.Sync()
-
-	of.Seek(0, 0)
-
-	if len(ct) == 0 {
-		ct = detect_charset(of)
-	}
-	log.Println("detected content-type", ct)
-
-	of.Seek(0, 0)
-	if len(ct) == 0 {
-		ct = "gbk"
-	}
-	//某些技术网站使用繁体，但标识gb2312
-	if ct == "gb2312" {
-		ct = "gbk"
-	}
-	if ct != "utf-8" {
-		in, _ := ioutil.ReadAll(of)
-		out := make([]byte, len(in)*2)
-
-		_, w, _ := iconv.Convert(in, out, ct, "utf-8")
-		out = out[:w]
-		ioutil.WriteFile(localpath, out, 0644)
-	} else {
-		tf, err := os.Create(localpath)
-		try_panic(err)
-		defer tf.Close()
-		io.Copy(tf, of)
-	}
-	return err
-}
-*/
-
 func extract_charset(ct string) (string, string) {
-	content_type, param, _ := mime.ParseMediaType(ct)
-	//	log.Println(mt, param)
-	return param["charset"], content_type
-	/*
-		ct = strings.ToLower(ct)
-		re := regexp.MustCompile(`(?i)(?:charset *= *)([^; ]+)`)
-		charset := re.FindStringSubmatch(ct)
-		if len(charset) == 2 {
-			return charset[1]
-		}
-		return ""
-	*/
+	media_type, param, _ := mime.ParseMediaType(ct)
+	return param["charset"], media_type
 }
 func detect_charset(file *os.File) (string, string) {
 	head := make([]byte, 512)
@@ -291,13 +196,6 @@ func NewHtmlDocument(localpath string) *html.Node {
 	return doc
 }
 
-/*
-func WriteHtmlFile(doc *html.Node, localpath string) {
-	data := new(bytes.Buffer)
-	try_panic(html.Render(data, doc))
-	try_panic(ioutil.WriteFile(localpath, data.Bytes(), 0644))
-}
-*/
 func WriteHtmlFile2(doc *html.Node) string {
 	of, err := ioutil.TempFile("", "")
 	try_panic(err)

@@ -160,17 +160,7 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 				case "br":
 					child.Data = "p"
 				case "article":
-				/* 需要计算article的文本和链接密度是否合理
-				if cleaner.Article == nil || cleaner.Article.Data == "body" {
-					cleaner.Article = child
-				} else {
-					pl := len(get_inner_text(cleaner.Article))
-					cl := len(get_inner_text(child))
-					if cl > pl {
-						cleaner.Article = child
-					}
-				}
-				*/
+// a html may have more article nodes,
 				case "h1":
 					cleaner.header1s = append(cleaner.header1s, child)
 				case "h2":

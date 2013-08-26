@@ -3,8 +3,6 @@ package feeds
 import (
 	"encoding/xml"
 	"gextract/document"
-	//	"hash/fnv"
-	//	"labix.org/v2/mgo/bson"
 	"log"
 	"os"
 	"time"
@@ -163,9 +161,6 @@ func (this *Channel) LinkOne() string {
 		if len(l.Href) > 0 {
 			return l.Href
 		}
-		//    else if len(l.Href2) > 0 {
-		//			return l.Href2
-		//		}
 	}
 	return ""
 }

@@ -50,7 +50,6 @@ func recover_panic() {
 
 func touch_entry(echan <-chan *feeds.Entry, done chan<- int) {
 	for e := <-echan; e != nil; e = <-echan {
-		//		tf, _ := d.FetchUrl3(e.Link)
 		tf := d.ExtractHtml(e.Link)
 		feeds.EntryUpdateContent(tf, e.Link)
 	}
