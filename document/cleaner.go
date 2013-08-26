@@ -1,6 +1,7 @@
 package document
 
 import (
+	"bytes"
 	"code.google.com/p/go.net/html"
 	"code.google.com/p/go.net/html/atom"
 	"fmt"
@@ -89,9 +90,9 @@ func (cleaner *HtmlCleaner) CleanHtml(root *html.Node) {
 	}
 
 	if cleaner.Article == nil {
-		log.Println("cleaner article by empty")
+
 		cleaner.Article = &html.Node{Type: html.ElementNode,
-			DataAtom: atom.Lookup([]byte("body")),
+			DataAtom: atom.Body,
 			Data:     "body"}
 		root.AppendChild(cleaner.Article)
 	}
@@ -99,7 +100,7 @@ func (cleaner *HtmlCleaner) CleanHtml(root *html.Node) {
 	cleaner.fix_forms()
 
 	cleaner.clean_body()
-	log.Println("begin cleanning empty nodes")
+
 	cleaner.clean_empty_nodes(cleaner.Article)
 	cleaner.clean_attributes(cleaner.Article)
 }
@@ -492,4 +493,19 @@ func (this *HtmlCleaner) fix_a_href(a *html.Node) {
 	}
 	abs := this.current_url.ResolveReference(uri)
 	update_attribute(a, "href", abs.String())
+}
+
+func CleanFragment(cont, uri string) (string, error) {
+	doc, err := html.Parse(strings.NewReader(cont))
+	if err != nil {
+		log.Println(err)
+		return cont, err
+	}
+
+	cleaner := NewHtmlCleaner(uri)
+	cleaner.CleanHtml(doc)
+
+	var buf bytes.Buffer
+	err = html.Render(&buf, cleaner.Article)
+	return buf.String(), err
 }
