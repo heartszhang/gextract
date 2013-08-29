@@ -1,10 +1,16 @@
 package feeds
 
 import (
+	//	"bufio"
+	//	"code.google.com/p/go.net/html"
+	//	"gextract/document"
 	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
-	"log"
-	"time"
+
+//	"labix.org/v2/mgo/bson"
+//	"log"
+//	"os"
+//	"strings"
+//	"time"
 )
 
 var (
@@ -13,30 +19,38 @@ var (
 	session *mgo.Session
 )
 
-func clone_session() *mgo.Session {
+func clone_session() (*mgo.Session, error) {
 	if session == nil {
-		var err error
-		session, err = mgo.Dial(server)
-		try_panic(err)
+		//		var err error
+		if s, err := mgo.Dial(server); err != nil {
+			return nil, err
+		} else {
+			session = s
+		}
 	}
-	return session.Clone()
+	return session.Clone(), nil
 }
 
-func TerminateMongo() {
+func close_session() {
 	if session != nil {
 		sess := session
 		session = nil
 		sess.Close()
 	}
 }
-func DoInSession(collection string, act func(*mgo.Collection)) {
-	sess := clone_session()
+
+func do_in_session(collection string, act func(*mgo.Collection) error) error {
+	sess, err := clone_session()
+	if err != nil {
+		return err
+	}
 	defer sess.Close()
 
 	c := sess.DB(db).C(collection)
-	act(c)
+	return act(c)
 }
 
+/*
 func InsertChannel(c Channel) int {
 	rtn := 0
 	DoInSession("channels", func(coll *mgo.Collection) {
@@ -78,8 +92,17 @@ func InsertEntries(entries []Entry) {
 	DoInSession("entries", func(coll *mgo.Collection) {
 		for _, e := range entries {
 			insert_entry(coll, e)
+			FetchEntryImages(&e)
 		}
 	})
+}
+
+func ImagesUnready() []Image {
+	set := []Image{}
+	DoInSession("images", func(coll *mgo.Collection) {
+		coll.Find(bson.M{"ready": bson.M{"$exists": false}}).All(&set)
+	})
+	return set
 }
 
 func TopNEntries(skip, limit int) []Entry {
@@ -143,11 +166,11 @@ func TouchChannel(href string, ttl int) {
 	nextt := time.Now().Add(time.Duration(ttl) * time.Minute)
 	DoInSession("channels", func(coll *mgo.Collection) {
 		_, err := coll.UpdateAll(bson.M{"link": href},
-			bson.M{"$inc": bson.M{"refresh": nextt}})
+			bson.M{"$set": bson.M{"refresh": nextt}})
 		try_panic(err)
 	})
 }
-
+*/
 /*
 	content_status_ready      // content has been stored in a file
 	content_status_failed     // fetch content failed
@@ -155,13 +178,66 @@ func TouchChannel(href string, ttl int) {
 	content_status_summary    // content stored in Entry.Summary
 	content_status_content    // content stored in Entry.Content
 */
+
+/*
 func EntryUpdateContent(tf, link string) {
 	DoInSession("entries", func(coll *mgo.Collection) {
 		cs := content_status_failed
 		if len(tf) > 0 {
 			cs = content_status_ready
 		}
-		coll.Update(bson.M{"link": link}, bson.M{"$inc": bson.M{"content_status": cs, "content_path": tf}})
+		coll.Update(bson.M{"link": link}, bson.M{"$set": bson.M{"content_status": cs, "content_path": tf}})
+	})
+}
+
+func FetchEntryImagesExternal(e *Entry) {
+	s := document.SummaryScore{Images: []string{}}
+	if len(e.ContentPath) > 0 {
+		f, err := os.Open(e.ContentPath)
+		if err == nil {
+			defer f.Close()
+
+			rd := bufio.NewReader(f)
+			d3, _ := html.Parse(rd)
+			s.Add(document.NewSummaryScore(d3))
+		}
+	}
+	for _, img := range s.Images {
+		insert_image(img)
+	}
+	log.Println("should insert img-count:", len(s.Images))
+}
+
+func FetchEntryImages(e *Entry) {
+	s := document.SummaryScore{Images: []string{}}
+
+	d1, _ := html.Parse(strings.NewReader(e.Summary))
+	s.Add(document.NewSummaryScore(d1))
+
+	d2, _ := html.Parse(strings.NewReader(e.Content))
+	s.Add(document.NewSummaryScore(d2))
+
+	if len(e.ContentPath) > 0 {
+		f, err := os.Open(e.ContentPath)
+		if err == nil {
+			defer f.Close()
+
+			rd := bufio.NewReader(f)
+			d3, _ := html.Parse(rd)
+			s.Add(document.NewSummaryScore(d3))
+		}
+	}
+	for _, img := range s.Images {
+		insert_image(img)
+	}
+	log.Println("should insert img-count:", len(s.Images))
+}
+func insert_image(img string) {
+	DoInSession("images", func(coll *mgo.Collection) {
+		ci, _ := coll.Upsert(bson.M{"link": img}, bson.M{"$set": bson.M{}})
+		if ci.Updated > 0 {
+			log.Println("insert dup img", img)
+		}
 	})
 }
 
@@ -169,7 +245,7 @@ func MarkReadCatetoryaDayBefore(category string) {
 	deadline := time.Now().AddDate(0, 0, -1)
 	DoInSession("entries", func(coll *mgo.Collection) {
 		_, err := coll.UpdateAll(bson.M{"pubdate": bson.M{"$lt": deadline}, "category": category},
-			bson.M{"$inc": bson.M{"read": true}})
+			bson.M{"$set": bson.M{"read": true}})
 		try_panic(err)
 	})
 }
@@ -178,7 +254,7 @@ func MarkReadChannelaDayBefore(cid string) {
 	deadline := time.Now().AddDate(0, 0, -1)
 	DoInSession("entries", func(coll *mgo.Collection) {
 		_, err := coll.UpdateAll(bson.M{"pubdate": bson.M{"$lt": deadline}, "cid": cid},
-			bson.M{"$inc": bson.M{"read": true}})
+			bson.M{"$set": bson.M{"read": true}})
 		try_panic(err)
 	})
 }
@@ -186,8 +262,21 @@ func MarkReadChannelaDayBefore(cid string) {
 func MarkReadEntry(link string) {
 	DoInSession("entries", func(coll *mgo.Collection) {
 		err := coll.Update(bson.M{"link": link},
-			bson.M{"$inc": bson.M{"read": true}})
+			bson.M{"$set": bson.M{"read": true}})
 		try_panic(err)
 	})
 
 }
+
+func ImageUpdateState(link, localfn string) {
+	rdy := content_status_failed
+	if len(localfn) > 0 {
+		rdy = content_status_ready
+	}
+	DoInSession("images", func(coll *mgo.Collection) {
+		coll.Update(bson.M{"link": link},
+			bson.M{"$set": bson.M{"ready": rdy, "local": localfn}})
+	})
+}
+
+*/
