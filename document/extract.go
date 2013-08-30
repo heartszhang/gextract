@@ -7,42 +7,48 @@ import (
 	"os"
 )
 
-func ExtractHtml(url string) string {
-	defer func() {
-		if err := recover(); err != nil {
-			log.Println(err)
-		}
-	}()
-	htmlfile, _ := FetchUrl2(url)
-	log.Println("writing step 1", htmlfile)
+// cleaned html doc by utf-8 encoded
+// return filepath, *SummaryScore, error
+func ExtractHtml(url string) (string, *SummaryScore, error) {
+	htmlfile, _, err := DownloadHtml(url)
+	if err != nil {
+		return "", &SummaryScore{}, err
+	}
+	//	log.Println("writing step 1", htmlfile)
 
 	f, err := os.Open(htmlfile)
-	try_panic(err)
+	if err != nil {
+		return "", &SummaryScore{}, err
+	}
 	defer f.Close()
 
 	reader := bufio.NewReader(f)
 	doc, err := html.Parse(reader)
-	try_panic(err)
+	if err != nil {
+		return "", &SummaryScore{}, err
+	}
 
 	cleaner := NewHtmlCleaner(url)
 	cleaner.CleanHtml(doc)
-	log.Println(cleaner)
+	//	log.Println(cleaner)
 
-	log.Println("writing step 2", WriteHtmlFile2(doc))
+	s2, _ := WriteHtmlFile2(doc)
+	log.Println("writing step 2", s2)
 
 	rdr := NewReadabilitier(cleaner.Article)
 	doc1, article := rdr.CreateArticle()
 
-	log.Println("writing step 3", WriteHtmlFile2(doc1))
+	s2, _ = WriteHtmlFile2(doc1)
+	log.Println("writing step 3", s2)
 
 	boiler := NewBoilerpiper(article)
 	boiler.NumberWordsRulesFilter()
 
-	h4ml := WriteHtmlFile2(doc1)
+	h4ml, _ := WriteHtmlFile2(doc1)
 	log.Println("writing step 4", h4ml)
 
 	boiler.FormPrefixFilter()
-	h5ml := WriteHtmlFile2(doc1)
+	h5ml, err := WriteHtmlFile2(doc1)
 	log.Println("writing step 5", h5ml)
-	return h5ml
+	return h5ml, NewSummaryScore(doc1), err
 }
