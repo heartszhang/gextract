@@ -2,6 +2,7 @@ package document
 
 import (
 	"code.google.com/p/go.net/html"
+	"log"
 )
 
 type Boilerpiper struct {
@@ -96,6 +97,7 @@ func new_boilerpiper() *Boilerpiper {
 }
 
 const (
+	ld_link_para_t = 13
 	ld_link_group_t       = 33
 	ld_link_group_title_t = 55
 	w_current_line_l      = 20
@@ -117,6 +119,16 @@ func (this *Boilerpiper) classify(prev *boilerpipe_score,
 			(current.words > w_current_line_l || next.words > w_next_line_l || prev.words > w_prev_line_l)) ||
 			(prev.link_density() > ld_link_group_title_t && (current.words > 40 || next.words > 17))
 		current.is_content = current.is_content || c
+		//images between content paragraphs
+		if prev.link_density() <= ld_link_group_t && next.link_density() <= ld_link_group_t &&
+		current.words == 0 && current.imgs > 0 && current.anchor_imgs == 0 {
+			current.is_content = true
+		}
+		// short paragraphs
+		if prev.link_density() < ld_link_para_t && next.link_density() < ld_link_para_t && 
+		current.link_density() < ld_link_para_t && current.words < 40 {
+			current.is_content = true
+		}
 	}
 	if current.words < w_prev_line_l && next.link_density() > ld_link_group_title_t {
 		current.is_content = false
@@ -124,13 +136,12 @@ func (this *Boilerpiper) classify(prev *boilerpipe_score,
 	if current.forms > 0 && current.words == 0 {
 		current.is_content = false
 	}
-	/*
-		// debug log
-		if current.link_density() > 25 {
-			log.Printf("is_content: %v, words:%v,line:%v, isfomr:%v, lnk_dsnty: %v, anchor: %v, %v\n",
-				current.is_content,
-				current.words,
-				current.lines(), current.forms, current.link_density(), current.anchors, strings.TrimSpace(current.inner_text))
-		}
-	*/
+	
+	log.Println("is-content:", current.is_content,
+		"words:", current.words,
+		"imgs:", current.imgs,
+		"lines:", current.lines(),
+		"density:", current.link_density(),
+		"links:", current.anchors,
+		"aimgs:", current.anchor_imgs)
 }
