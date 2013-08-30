@@ -5,7 +5,7 @@ import (
 	"code.google.com/p/go.net/html"
 	"code.google.com/p/go.net/html/atom"
 	"fmt"
-	"log"
+	//	"log"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -120,7 +120,7 @@ func (this *HtmlCleaner) try_catch_phpwnd() {
 	}
 	//remove_decentant(top.element, "table")
 	this.Article = top.element
-	log.Println("use td as body", top)
+	//	log.Println("use td as body", top)
 }
 
 var (
@@ -141,10 +141,10 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 			if unlikely.MatchString(idc) {
 				drop = true
 				*dropping = append(*dropping, child)
-				log.Println("dropping by class-id", idc, ", of ", child.Data)
+				//				log.Println("dropping by class-id", idc, ", of ", child.Data)
 			} else {
 				switch child.Data {
-				case "script", "link", "iframe", "nav", "aside", "noscript", "style", "input", "textarea":
+				case "script", "link", "iframe", "nav", "aside", "noscript", "style", "input", "textarea", "marquee":
 					*dropping = append(*dropping, child)
 					drop = true
 				case "meta":
@@ -159,7 +159,7 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 				case "br":
 					child.Data = "p"
 				case "article":
-// a html may have more article nodes,
+					// a html may have more article nodes,
 				case "h1":
 					cleaner.header1s = append(cleaner.header1s, child)
 				case "h2":
@@ -191,7 +191,7 @@ func (cleaner *HtmlCleaner) clean_unprintable_element(dropping *[]*html.Node, n 
 					if is_ownered_by_a(child) {
 						cleaner.link_imgs++
 					}
-					log.Println(get_attribute(child, "src"))
+					//					log.Println(get_attribute(child, "src"))
 					trim_small_image(child)
 				case "a":
 					cleaner.links++
@@ -231,9 +231,11 @@ func (this *HtmlCleaner) try_update_article(candi *html.Node) {
 	}
 	this.Article = candi
 }
-const(
-	small_image_t = 180  // pixels
+
+const (
+	small_image_t = 180 // pixels
 )
+
 func trim_small_image(img *html.Node) {
 	width, werr := strconv.ParseInt(get_attribute(img, "width"), 0, 32)
 	height, herr := strconv.ParseInt(get_attribute(img, "height"), 0, 32)
@@ -262,7 +264,7 @@ func remove_children(a *html.Node) {
 func trim_display_none(n *html.Node) {
 	st := get_attribute(n, "style")
 	if strings.Contains(st, "display") && (strings.Contains(st, "none")) {
-		log.Println("hide-node display:none", n.Data)
+		//		log.Println("hide-node display:none", n.Data)
 		n.Data = "input"
 	}
 }
@@ -434,6 +436,7 @@ func (this *HtmlCleaner) trim_empty_spaces(n *html.Node) {
 const (
 	link_img_as_words_c = 4
 )
+
 func (this *HtmlCleaner) link_density() int {
 	switch {
 	case this.text_words == 0 && this.links == 0:
@@ -446,19 +449,19 @@ func (this *HtmlCleaner) link_density() int {
 }
 
 func (this *HtmlCleaner) String() string {
-	return fmt.Sprint("cleaner links:", this.links, 
+	return fmt.Sprint("cleaner links:", this.links,
 		", texts:", this.text_words,
 		", article:", this.Article.Data,
-		", linkd:", this.link_density(), 
+		", linkd:", this.link_density(),
 		", tables:", len(this.tables),
-		", imgs:", this.imgs, 
+		", imgs:", this.imgs,
 		", linkimgs:", this.link_imgs,
-		", uls:", len(this.uls), 
-		", ols:", len(this.ols), 
-		", lis:", this.lis, 
+		", uls:", len(this.uls),
+		", ols:", len(this.ols),
+		", lis:", this.lis,
 		", forms:", len(this.forms),
-		", h1:", len(this.header1s), 
-		", h2:", len(this.header2s), 
+		", h1:", len(this.header1s),
+		", h2:", len(this.header2s),
 		", h3:", len(this.header3s))
 }
 
@@ -484,7 +487,7 @@ func (this *HtmlCleaner) fix_forms() {
 		if pcnt > 33 {
 			form.Data = "div"
 		}
-		log.Println("fix form", pcnt, form)
+		//		log.Println("fix form", pcnt, form)
 	}
 }
 
@@ -498,17 +501,19 @@ func (this *HtmlCleaner) fix_a_href(a *html.Node) {
 	update_attribute(a, "href", abs.String())
 }
 
-func CleanFragment(cont, uri string) (string, error) {
+//return local_filepath, words, images
+func CleanFragment(cont, uri string) (string, *SummaryScore) {
 	doc, err := html.Parse(strings.NewReader(cont))
 	if err != nil {
-		log.Println(err)
-		return cont, err
+		return cont, &SummaryScore{}
 	}
 
 	cleaner := NewHtmlCleaner(uri)
 	cleaner.CleanHtml(doc)
+	_, body := FlattenHtmlDocument(cleaner.Article)
+	body.Data = "div" // remvoe body
 
 	var buf bytes.Buffer
-	err = html.Render(&buf, cleaner.Article)
-	return buf.String(), err
+	err = html.Render(&buf, body)
+	return buf.String(), NewSummaryScore(body)
 }
