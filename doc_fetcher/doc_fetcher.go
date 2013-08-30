@@ -4,6 +4,7 @@ import (
 	"flag"
 	d "gextract/document"
 	"gextract/feeds"
+	"gextract/feeds/meta"
 	"log"
 	"os"
 )
@@ -16,31 +17,33 @@ const (
 func main() {
 	defer recover_panic()
 	flag.Parse()
-	entries := feeds.EntriesContentUnready()
-	log.Println(len(entries))
+	/*
+			entries := feeds.EntriesContentUnready()
+			log.Println(len(entries))
 
-	cocurrents := max_cocurrents
-	echans := make([]chan *feeds.Entry, cocurrents)
-	done := make(chan int)
+		cocurrents := max_cocurrents
+		echans := make([]chan *feeds.Entry, cocurrents)
+		done := make(chan int)
 
-	for i := 0; i < cocurrents; i++ {
-		echan := make(chan *feeds.Entry, chan_buf_size)
-		echans[i] = echan
-		go touch_entry(echan, done)
-	}
+		for i := 0; i < cocurrents; i++ {
+			echan := make(chan *feeds.Entry, chan_buf_size)
+			echans[i] = echan
+			go touch_entry(echan, done)
+		}
 
-	for i, e := range entries {
-		x := e
-		echans[i%cocurrents] <- &x
-	}
+		for i, e := range entries {
+			x := e
+			echans[i%cocurrents] <- &x
+		}
 
-	for i := 0; i < cocurrents; i++ {
-		echans[i] <- nil
-	}
+		for i := 0; i < cocurrents; i++ {
+			echans[i] <- nil
+		}
 
-	for i := 0; i < cocurrents; i++ {
-		<-done
-	}
+		for i := 0; i < cocurrents; i++ {
+			<-done
+		}
+	*/
 }
 
 func init() {
@@ -53,10 +56,13 @@ func recover_panic() {
 	}
 }
 
-func touch_entry(echan <-chan *feeds.Entry, done chan<- int) {
+func touch_entry(echan <-chan *meta.Entry, done chan<- int) {
 	for e := <-echan; e != nil; e = <-echan {
-		tf := d.ExtractHtml(e.Link)
-		feeds.EntryUpdateContent(tf, e.Link)
+		tf, sc, _ := d.ExtractHtml(e.Link)
+		//		cf := feeds.NewContentFile(tf, sc.Words, sc.Imgs)
+		feeds.NewEntryOperator().SetContent(e.Link, tf, sc.WordCount, sc.Images)
+		//		feeds.EntryUpdateContent(tf, e.Link)
+		//		feeds.FetchEntryImagesExternal(e)
 	}
 	done <- 0
 }
