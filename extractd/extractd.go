@@ -114,7 +114,7 @@ func extract_html(w http.ResponseWriter, r *http.Request) {
 	if len(url) == 0 {
 		write_json(w, _status.config())
 	}
-	tf := htmldoc.ExtractHtml(url)
+	tf, _, _ := htmldoc.ExtractHtml(url)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	http.ServeFile(w, r, tf)
 }
@@ -127,7 +127,7 @@ func extract_simple_json(w http.ResponseWriter, r *http.Request) {
 	if len(uri) == 0 {
 		write_json(w, _status.config())
 	}
-	tf := htmldoc.ExtractHtml(uri)
+	tf, _, _ := htmldoc.ExtractHtml(uri)
 	val := struct {
 		Url    string `json:"url,omitempty"`
 		Target string `json:"target,omitempty"`
@@ -178,10 +178,10 @@ func subscribe_rss2(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	url := r.FormValue("url")
 	fmt.Println("fetching ", url)
-	rss_file, _ := htmldoc.FetchUrl2(url)
+	rss_file, _, _, _ := htmldoc.DefaultCurl().Download(url)
 	fmt.Println("rss-file", rss_file)
-	channel, _ := feeds.NewRss2(rss_file, url)
-	feeds.InsertChannel(channel)
+	channel, _, _ := feeds.NewFeed(rss_file, url)
+	feeds.NewFeedOperator().Upsert(channel)
 
 	write_json(w, channel)
 }
