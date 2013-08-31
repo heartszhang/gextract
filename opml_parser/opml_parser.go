@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"gextract/feeds"
+	feeds "github.com/heartszhang/gextract/feeds"
+	opml "github.com/heartszhang/gextract/feeds/opml"
 )
 
 func main() {
-	ols, _ := feeds.NewOpml("opml.xml")
+	ols, _ := opml.NewOpml("opml.xml")
 	feeds.NewFeedOperator().Save(ols)
 	fmt.Println(ols)
 }

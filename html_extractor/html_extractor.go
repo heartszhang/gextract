@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	d "gextract/document"
+	d "github.com/heartszhang/gextract/document"
 	"log"
 	"os"
 )
@@ -19,6 +19,6 @@ func main() {
 		log.Println("html_extractor --uri http://xxxx.com")
 		return
 	}
-	tf := d.ExtractHtml(*uri)
+	tf, _, _ := d.ExtractHtml(*uri)
 	log.Println(tf)
 }

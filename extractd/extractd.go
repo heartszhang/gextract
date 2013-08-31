@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	htmldoc "gextract/document"
 	"gextract/feeds"
+	htmldoc "github.com/heartszhang/gextract/document"
 	"io"
 	"log"
 	"net/http"

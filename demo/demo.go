@@ -2,8 +2,7 @@ package main
 
 import (
 	"fmt"
-	"gextract/feeds"
-	"gextract/feeds/rss"
+	"github.com/heartszhang/gextract/feeds"
 	"log"
 	"os"
 )
@@ -17,7 +16,7 @@ func init() {
 	log.SetOutput(os.Stderr)
 }
 func main() {
-	c, items, _ := rss.NewRss2(rssfile, base_url)
+	c, items, _ := feeds.NewFeed(rssfile, base_url)
 	fmt.Println(c)
 	for _, item := range items {
 		fmt.Println(item.Title)
@@ -31,8 +30,4 @@ func main() {
 	eo.Save(items)
 	//	feeds.InsertChannel(c)
 	//	test_db(items)
-}
-
-func test_db(items []feeds.Entry) {
-
 }
