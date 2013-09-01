@@ -1,16 +1,7 @@
 package feeds
 
 import (
-	//	"bufio"
-	//	"code.google.com/p/go.net/html"
-	//	"gextract/document"
 	"labix.org/v2/mgo"
-
-//	"labix.org/v2/mgo/bson"
-//	"log"
-//	"os"
-//	"strings"
-//	"time"
 )
 
 var (

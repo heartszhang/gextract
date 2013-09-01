@@ -1,11 +1,10 @@
 package feeds
 
 import (
-  . "gextract/feeds/meta"
-	"gextract/feeds/atom"
-	"gextract/feeds/rss"
+	"github.com/heartszhang/gextract/feeds/atom"
+	. "github.com/heartszhang/gextract/feeds/meta"
+	"github.com/heartszhang/gextract/feeds/rss"
 )
-
 
 func NewFeed(filepath string, uri string) (*Feed, []Entry, error) {
 	f, entries, err := rss.NewRss2(filepath, uri)

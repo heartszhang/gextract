@@ -3,9 +3,9 @@ package rss
 import (
 	"encoding/xml"
 	"errors"
-	"gextract/document"
-	. "gextract/feeds/meta"
 	iconv "github.com/djimenez/iconv-go"
+	"github.com/heartszhang/gextract/document"
+	. "github.com/heartszhang/gextract/feeds/meta"
 	"io"
 	"log"
 	"os"

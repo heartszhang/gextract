@@ -1,7 +1,7 @@
 package feeds
 
 import (
-	. "gextract/feeds/meta"
+	. "github.com/heartszhang/gextract/feeds/meta"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"time"
@@ -12,6 +12,7 @@ type FeedOperator interface {
 	Upsert(f *Feed) error
 	Find(uri string) (*Feed, error)
 	TimeoutFeeds() ([]Feed, error)
+	AllFeeds() ([]Feed, error)
 	Touch(uri string, ttl int) error
 	Update(f *Feed) error
 }
@@ -60,6 +61,13 @@ func (op_feed) Find(uri string) (*Feed, error) {
 	return rtn, err
 }
 
+func (op_feed) AllFeeds() (feds []Feed, err error) {
+	feds = make([]Feed, 0)
+	err = do_in_session("feeds", func(coll *mgo.Collection) error {
+		return coll.Find(bson.M{}).All(&feds)
+	})
+	return
+}
 func (op_feed) TimeoutFeeds() ([]Feed, error) {
 	rtn := make([]Feed, 0)
 	err := do_in_session("feeds", func(coll *mgo.Collection) error {

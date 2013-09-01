@@ -2,12 +2,8 @@ package opml
 
 import (
 	"encoding/xml"
-	. "gextract/feeds/meta"
-	//	"labix.org/v2/mgo"
-	//	"labix.org/v2/mgo/bson"
-	//	"log"
+	. "github.com/heartszhang/gextract/feeds/meta"
 	"os"
-
 	"time"
 )
 
