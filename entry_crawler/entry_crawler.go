@@ -37,13 +37,14 @@ func fetch_entries(feds []meta.Feed, done chan<- int) {
 		f, entries, err := feeds.NewFeed(rsfile, feed.Link)
 		if err != nil {
 			fmt.Println(feed.Link, len(entries), err)
-			feeds.NewFeedOperator().Remove(feed.Link)
+			feeds.NewFeedOperator().Disable(feed.Link, true)
 		} else {
 			fmt.Println(f.Title, len(entries))
 		}
 
 		if err == nil {
-			feeds.NewEntryOperator().Save(entries)
+			ins, _ := feeds.NewEntryOperator().Save2(entries)
+			fmt.Println(len(ins), feed.Link)
 		}
 
 	}
