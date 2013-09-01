@@ -14,6 +14,8 @@ type FeedOperator interface {
 	TimeoutFeeds() ([]Feed, error)
 	AllFeeds() ([]Feed, error)
 	Touch(uri string, ttl int) error
+	Remove(link string) error
+	Disable(link string, dis bool) error
 	Update(f *Feed) error
 }
 
@@ -43,6 +45,18 @@ func (op_feed) Upsert(f *Feed) error {
 	})
 }
 
+func (op_feed) Remove(link string) error {
+	return do_in_session("feeds", func(coll *mgo.Collection) error {
+		return coll.Remove(bson.M{"link": link})
+	})
+}
+
+func (op_feed) Disable(link string, dis bool) error {
+	return do_in_session("feeds", func(coll *mgo.Collection) error {
+		return coll.Update(bson.M{"link": link}, bson.M{"$set": bson.M{"disabled": dis}})
+	})
+}
+
 func (op_feed) Update(f *Feed) error {
 	return do_in_session("feeds", func(coll *mgo.Collection) error {
 		return coll.Update(bson.M{"link": f.Link},
@@ -64,14 +78,16 @@ func (op_feed) Find(uri string) (*Feed, error) {
 func (op_feed) AllFeeds() (feds []Feed, err error) {
 	feds = make([]Feed, 0)
 	err = do_in_session("feeds", func(coll *mgo.Collection) error {
-		return coll.Find(bson.M{}).All(&feds)
+		return coll.Find(bson.M{"disabled": false}).All(&feds)
+		//		return coll.Find(bson.M{"$nor": []bson.M{bson.M{"disabled": bson.M{"$exist": true}},
+		//			bson.M{"disabled": true}}}).All(&feds)
 	})
 	return
 }
 func (op_feed) TimeoutFeeds() ([]Feed, error) {
 	rtn := make([]Feed, 0)
 	err := do_in_session("feeds", func(coll *mgo.Collection) error {
-		return coll.Find(bson.M{"refresh": bson.M{"$lt": time.Now()}}).All(&rtn)
+		return coll.Find(bson.M{"disabled": false, "refresh": bson.M{"$lt": time.Now()}}).All(&rtn)
 	})
 	return rtn, err
 }
