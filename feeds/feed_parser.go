@@ -2,11 +2,11 @@ package feeds
 
 import (
 	"github.com/heartszhang/gextract/feeds/atom"
-	. "github.com/heartszhang/gextract/feeds/meta"
+	m "github.com/heartszhang/gextract/feeds/meta"
 	"github.com/heartszhang/gextract/feeds/rss"
 )
 
-func NewFeed(filepath string, uri string) (*Feed, []Entry, error) {
+func NewFeed(filepath string, uri string) (*m.Feed, []m.Entry, error) {
 	f, entries, err := rss.NewRss2(filepath, uri)
 	if err != nil {
 		f, entries, err = atom.NewAtom(filepath, uri)
