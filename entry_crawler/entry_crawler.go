@@ -7,7 +7,7 @@ import (
 	"github.com/heartszhang/gextract/feeds/meta"
 )
 
-const cocurrents = 4
+const cocurrents = 8
 
 func main() {
 	fds, _ := feeds.NewFeedOperator().AllFeeds()
@@ -25,14 +25,27 @@ func main() {
 }
 
 func fetch_entries(feds []meta.Feed, done chan<- int) {
+	fmt.Println("fetch entries", len(feds))
 	curl := d.DefaultCurl()
 	for _, feed := range feds {
 		rsfile, _, _, err := curl.Download(feed.Link)
 		fmt.Println(rsfile, err)
-		_, entries, err := feeds.NewFeed(rsfile, feed.Link)
-		//		log.Println(f, len(entries), err)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		f, entries, err := feeds.NewFeed(rsfile, feed.Link)
+		if err != nil {
+			fmt.Println(feed.Link, len(entries), err)
+			feeds.NewFeedOperator().Remove(feed.Link)
+		} else {
+			fmt.Println(f.Title, len(entries))
+		}
 
-		feeds.NewEntryOperator().Save(entries)
+		if err == nil {
+			feeds.NewEntryOperator().Save(entries)
+		}
+
 	}
 	done <- 0
 }
