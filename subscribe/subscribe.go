@@ -3,8 +3,8 @@ package main
 import (
 	"errors"
 	"flag"
-	"gextract/feeds"
 	d "github.com/heartszhang/gextract/document"
+	"github.com/heartszhang/gextract/feeds"
 	"log"
 	"os"
 )

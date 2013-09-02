@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"gextract/feeds"
+	"github.com/heartszhang/gextract/feeds"
 )
 
 func main() {

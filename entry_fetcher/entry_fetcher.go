@@ -4,8 +4,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	d "gextract/document"
-	"gextract/feeds"
+	d "github.com/heartszhang/gextract/document"
+	"github.com/heartszhang/gextract/feeds"
 	"log"
 )
 
