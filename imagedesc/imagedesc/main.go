@@ -16,6 +16,8 @@ func main() {
 	}
 	mt, w, h, cl, err := imagedesc.DetectImageType(*uri)
 	fmt.Println(mt, w, h, cl, err)
+	fp, w, h, err := imagedesc.NewJpegThumbnail(*uri, 120, 0)
+	fmt.Println(fp, mt, w, h, err)
 	/*
 		const header_size = 4
 		header := make([]byte, header_size)
