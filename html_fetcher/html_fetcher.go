@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	d "gextract/document"
+	d "github.com/heartszhang/gextract/document"
 )
 
 var (

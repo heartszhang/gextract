@@ -1,14 +1,15 @@
 package main
 
 import (
-	"flag"
-	d "gextract/document"
-	"gextract/feeds"
-	"io"
-	"log"
-	"os"
-	"path/filepath"
-	"strings"
+//	"flag"
+//	"github.com/heartszhang/gextract/feeds"
+//	d "github.com/heartszhang/gextract/document"
+
+//	"io"
+//	"log"
+//	"os"
+//	"path/filepath"
+//	"strings"
 )
 
 const (
@@ -18,35 +19,39 @@ const (
 )
 
 func main() {
-	defer recover_panic()
-	flag.Parse()
-	images := feeds.ImagesUnready()
-	log.Println(len(images))
+	/*
+		defer recover_panic()
+		flag.Parse()
 
-	cocurrents := max_cocurrents
-	echans := make([]chan *feeds.Image, cocurrents)
-	done := make(chan int)
+		images := feeds.ImagesUnready()
+		log.Println(len(images))
 
-	for i := 0; i < cocurrents; i++ {
-		echan := make(chan *feeds.Image, chan_buf_size)
-		echans[i] = echan
-		go touch_entry(echan, done)
-	}
+		cocurrents := max_cocurrents
+		echans := make([]chan *feeds.Image, cocurrents)
+		done := make(chan int)
 
-	for i, e := range images {
-		x := e
-		echans[i%cocurrents] <- &x
-	}
+		for i := 0; i < cocurrents; i++ {
+			echan := make(chan *feeds.Image, chan_buf_size)
+			echans[i] = echan
+			go touch_entry(echan, done)
+		}
 
-	for i := 0; i < cocurrents; i++ {
-		echans[i] <- nil
-	}
+		for i, e := range images {
+			x := e
+			echans[i%cocurrents] <- &x
+		}
 
-	for i := 0; i < cocurrents; i++ {
-		<-done
-	}
+		for i := 0; i < cocurrents; i++ {
+			echans[i] <- nil
+		}
+
+		for i := 0; i < cocurrents; i++ {
+			<-done
+		}
+	*/
 }
 
+/*
 func init() {
 	log.SetOutput(os.Stderr)
 }
@@ -101,3 +106,4 @@ func copy_file(target, src string) bool {
 	}
 	return true
 }
+*/

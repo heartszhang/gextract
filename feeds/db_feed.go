@@ -1,7 +1,7 @@
 package feeds
 
 import (
-	. "gextract/feeds/meta"
+	. "github.com/heartszhang/gextract/feeds/meta"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"time"
@@ -9,10 +9,14 @@ import (
 
 type FeedOperator interface {
 	Save(feeds []Feed) error
+	Save2(feeds []Feed) ([]Feed, error)
 	Upsert(f *Feed) error
 	Find(uri string) (*Feed, error)
 	TimeoutFeeds() ([]Feed, error)
+	AllFeeds() ([]Feed, error)
 	Touch(uri string, ttl int) error
+	Remove(link string) error
+	Disable(link string, dis bool) error
 	Update(f *Feed) error
 }
 
@@ -23,22 +27,54 @@ func NewFeedOperator() FeedOperator {
 type op_feed struct {
 }
 
-func (op_feed) Save(feeds []Feed) error {
-	return do_in_session("feeds", func(coll *mgo.Collection) error {
+func (op_feed) Save2(feeds []Feed) (inserted []Feed, err error) {
+	inserted = make([]Feed, 0)
+	err = do_in_session("feeds", func(coll *mgo.Collection) error {
 		for _, f := range feeds {
-			_, err := coll.Upsert(bson.M{"link": f.Link}, bson.M{"$setOnInsert": f})
+			ci, err := coll.Upsert(bson.M{"link": f.Link}, bson.M{"$setOnInsert": f})
 			if err != nil {
 				return err
+			}
+			if ci.UpsertedId != nil {
+				inserted = append(inserted, f)
 			}
 		}
 		return nil
 	})
+	return
+}
+
+func (this op_feed) Save(feeds []Feed) error {
+	_, e := this.Save2(feeds)
+	return e
+	/*	return do_in_session("feeds", func(coll *mgo.Collection) error {
+			for _, f := range feeds {
+				_, err := coll.Upsert(bson.M{"link": f.Link}, bson.M{"$setOnInsert": f})
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	*/
 }
 
 func (op_feed) Upsert(f *Feed) error {
 	return do_in_session("feeds", func(coll *mgo.Collection) error {
 		_, err := coll.Upsert(bson.M{"link": f.Link}, bson.M{"$setOnInsert": f})
 		return err
+	})
+}
+
+func (op_feed) Remove(link string) error {
+	return do_in_session("feeds", func(coll *mgo.Collection) error {
+		return coll.Remove(bson.M{"link": link})
+	})
+}
+
+func (op_feed) Disable(link string, dis bool) error {
+	return do_in_session("feeds", func(coll *mgo.Collection) error {
+		return coll.Update(bson.M{"link": link}, bson.M{"$set": bson.M{"disabled": dis}})
 	})
 }
 
@@ -60,10 +96,19 @@ func (op_feed) Find(uri string) (*Feed, error) {
 	return rtn, err
 }
 
+func (op_feed) AllFeeds() (feds []Feed, err error) {
+	feds = make([]Feed, 0)
+	err = do_in_session("feeds", func(coll *mgo.Collection) error {
+		return coll.Find(bson.M{"disabled": false}).All(&feds)
+		//		return coll.Find(bson.M{"$nor": []bson.M{bson.M{"disabled": bson.M{"$exist": true}},
+		//			bson.M{"disabled": true}}}).All(&feds)
+	})
+	return
+}
 func (op_feed) TimeoutFeeds() ([]Feed, error) {
 	rtn := make([]Feed, 0)
 	err := do_in_session("feeds", func(coll *mgo.Collection) error {
-		return coll.Find(bson.M{"refresh": bson.M{"$lt": time.Now()}}).All(&rtn)
+		return coll.Find(bson.M{"disabled": false, "refresh": bson.M{"$lt": time.Now()}}).All(&rtn)
 	})
 	return rtn, err
 }
@@ -77,7 +122,8 @@ func (op_feed) Touch(uri string, ttl int) error {
 
 type EntryOperator interface {
 	Save([]Entry) error
-	SaveOne(Entry) error
+	Save2([]Entry) ([]Entry, error)
+	SaveOne(Entry) (interface{}, error)
 	TopN(skip, limit int) ([]Entry, error)
 	TopNByCategory(skip, limit int, category string) ([]Entry, error)
 	TopNByFeed(skip, limit int, feed string) ([]Entry, error)
@@ -98,22 +144,44 @@ func (op_entry) MarkRead(link string, readed bool) error {
 	})
 }
 
-func (op_entry) Save(entries []Entry) error {
-	return do_in_session("entries", func(coll *mgo.Collection) error {
+func (op_entry) Save2(entries []Entry) ([]Entry, error) {
+	inserted := make([]Entry, 0)
+	err := do_in_session("entries", func(coll *mgo.Collection) error {
 		for _, entry := range entries {
-			err := insert_entry(coll, entry)
+			iid, err := insert_entry(coll, entry)
 			if err != nil {
 				return err
+			}
+			if iid != nil {
+				inserted = append(inserted, entry)
 			}
 		}
 		return nil
 	})
+	return inserted, err
 }
 
-func (op_entry) SaveOne(entry Entry) error {
-	return do_in_session("entries", func(coll *mgo.Collection) error {
-		return insert_entry(coll, entry)
+func (this op_entry) Save(entries []Entry) error {
+	_, err := this.Save2(entries)
+	return err
+	/*	return do_in_session("entries", func(coll *mgo.Collection) error {
+			for _, entry := range entries {
+				err := insert_entry(coll, entry)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	*/
+}
+
+func (op_entry) SaveOne(entry Entry) (uid interface{}, err error) {
+	do_in_session("entries", func(coll *mgo.Collection) error {
+		uid, err = insert_entry(coll, entry)
+		return err
 	})
+	return uid, err
 }
 
 func (op_entry) TopN(skip, limit int) ([]Entry, error) {
@@ -144,9 +212,9 @@ func (op_entry) TopNByCategory(skip, limit int, category string) ([]Entry, error
 	return rtn, err
 }
 
-func insert_entry(coll *mgo.Collection, entry Entry) error {
-	_, err := coll.Upsert(bson.M{"link": entry.Link}, bson.M{"$setOnInsert": &entry})
-	return err
+func insert_entry(coll *mgo.Collection, entry Entry) (interface{}, error) {
+	ci, err := coll.Upsert(bson.M{"link": entry.Link}, bson.M{"$setOnInsert": &entry})
+	return ci.UpsertedId, err
 }
 
 func (op_entry) SetContent(link, filepath string, words int, imgs []string) error {

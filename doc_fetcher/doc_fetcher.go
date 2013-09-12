@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
-	d "gextract/document"
-	"gextract/feeds"
-	"gextract/feeds/meta"
+	d "github.com/heartszhang/gextract/document"
+	"github.com/heartszhang/gextract/feeds"
+	"github.com/heartszhang/gextract/feeds/meta"
 	"log"
 	"os"
 )

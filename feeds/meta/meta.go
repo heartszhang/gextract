@@ -23,6 +23,7 @@ type Feed struct { // generic struct
 	Refresh  time.Time `refresh`            // next refresh time
 	TTL      int       `ttl`                // minutes      refresh period
 	Category []string  `catetory,omitempty` // Category
+	Disabled bool      `disabled`
 }
 
 type Entry struct {

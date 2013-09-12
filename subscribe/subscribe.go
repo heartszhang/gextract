@@ -3,8 +3,8 @@ package main
 import (
 	"errors"
 	"flag"
-	"gextract/document"
-	"gextract/feeds"
+	d "github.com/heartszhang/gextract/document"
+	"github.com/heartszhang/gextract/feeds"
 	"log"
 	"os"
 )
@@ -21,11 +21,11 @@ func main() {
 	if len(*uri) == 0 {
 		panic(errors.New("usage: subscribe --uri http://xome.rss2.xml"))
 	}
-	rsfile, _ := document.FetchUrl2(*uri)
+	rsfile, _, _, _ := d.DefaultCurl().Download(*uri) //document.FetchUrl2(*uri)
 	log.Println(rsfile)
-	ch, _ := feeds.NewRss2(rsfile, *uri)
+	ch, _, _ := feeds.NewFeed(rsfile, *uri)
 	log.Println(ch)
-	feeds.InsertChannel(ch)
+	feeds.NewFeedOperator().Upsert(ch)
 }
 
 func catch_panic() {

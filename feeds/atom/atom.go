@@ -3,8 +3,8 @@ package atom
 import (
 	"encoding/xml"
 	"errors"
-	"gextract/document"
-	. "gextract/feeds/meta"
+	"github.com/heartszhang/gextract/document"
+	. "github.com/heartszhang/gextract/feeds/meta"
 	"net/http"
 	"os"
 	"time"
